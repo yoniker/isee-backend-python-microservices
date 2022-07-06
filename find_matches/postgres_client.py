@@ -217,10 +217,26 @@ class PostgresClient:
                     return {}
                 return dict(results[0])
 
-    def get_matches(self,lat=40.71427000,lon=-74.00597000,radius=10000):
+    def get_matches(self,lat=None,lon=None,radius=None,min_age=None,max_age=None,gender_index=None):
+
+        #The idea is to change the query string, and query args in accordance with the parameters required
+        query = 'SELECT count(*) FROM users WHERE true '
+        query_args = [] 
+        if all([x is not None for x in [lat,lon,radius]]):
+            query += f' and earth_box(ll_to_earth(%s,%s ),%s) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
+            query_args += [lat,lon,radius]
+        if min_age is not None:
+            query += ' and age>=%s '
+            query_args+= [min_age]
+        if max_age is not None:
+            query += ' and age<=%s '
+            query_args+= [max_age]
+        if gender_index is not None:
+            query += ' and gender_index=%s'
+            query_args += [gender_index]
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(f'SELECT count(*) FROM users WHERE earth_box(ll_to_earth(%s,%s ),%s) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value})',(lat,lon,radius))
+                cursor.execute(query,query_args)
                 results = cursor.fetchall()
                 results = [dict(result) for result in results]
                 return results
