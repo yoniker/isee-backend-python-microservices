@@ -6,6 +6,7 @@ class SQL_CONSTS:
     class TablesNames(str,Enum):
         IMAGES = 'images'
         USERS='users'
+        DUMMY_USERS = 'dummy_users'
         PARTICIPANTS='participants'
         UTIL_LOCATION = 'util_location'
         POF_STATE_LOCATION = 'util_pof_country_location'
@@ -13,6 +14,8 @@ class SQL_CONSTS:
         DECISIONS = 'decisions'
         
     
+
+
     class UtilLocationColumns(str,Enum):
         DESCRIPTION = 'description'
         LONGITUDE = 'longitude'
@@ -25,7 +28,13 @@ class SQL_CONSTS:
         LONGITUDE = 'longitude'
         LATITUDE = 'latitude'
         PRIMARY_KEY = f'({LATITUDE},{LONGITUDE},{STATE_ID},{CITY})'
+
+
+    class DummyUsersColumns(str, Enum):
+        POF_ID = 'pof_id'
         
+
+
     class UsersColumns(str, Enum):
         # Data about the user from firebase's JWT
         FIREBASE_UID = 'firebase_uid'
@@ -160,4 +169,11 @@ class SQL_CONSTS:
         USER_TASTE = 'USER_TASTE'
         TEXT_SEARCH = 'TEXT_SEARCH'
         NONE = 'NONE'
+
+    class UsersPreferredGender(str,Enum):
+        MEN = 'Men'
+        WOMEN = 'Women'
+        EVERYONE = 'Everyone'
+
+
      

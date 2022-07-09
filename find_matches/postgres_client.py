@@ -5,7 +5,9 @@ from sql_consts import SQL_CONSTS
 from psycopg2.errors import UniqueViolation
 from contextlib import contextmanager
 import time
-
+import pandas as pd
+import pandas.io.sql as sqlio
+import pickle
 
 
 
@@ -25,6 +27,7 @@ class PostgresClient:
                                                          cursor_factory=RealDictCursor
                                                          )
         self.autocommit=True
+        self.stats = pickle.load(open('dummy_users_stats.pkl', 'rb'))
 
     def __repr__(self) -> str:
         return 'Postgres Client @'+self.user+'@'+self.host
@@ -207,6 +210,24 @@ class PostgresClient:
                 status_line = cursor.execute(sql_cmd, data)
         return status_line
 
+    def _fraction_of_users(self, gender_index, min_age=None, max_age=None,desired_num_users = 500):
+        if gender_index == 0:
+            gender = SQL_CONSTS.DummyUsersGender.FEMALE.value
+        elif gender_index == 1:
+            gender = SQL_CONSTS.DummyUsersGender.MALE.value
+        else:
+            gender = None
+        genders = ['Male','Female'] if gender is None else [gender]
+        if min_age is None: min_age = 18
+        if max_age is None: max_age = 100
+        ages = range(min_age,max_age+1)
+        num_expected_users_in_query = 0
+        for gender in genders:
+            for age in ages:
+                num_expected_users_in_query += self.stats.get(gender, {}).get(age, 0)
+        if num_expected_users_in_query==0 : return 100
+        return desired_num_users* 100.0 / (num_expected_users_in_query)
+
             
     def get_user_profile(self, user_id):
         with self.get_connection() as connection:
@@ -217,14 +238,27 @@ class PostgresClient:
                     return {}
                 return dict(results[0])
 
-    def get_matches(self,lat=None,lon=None,radius=None,min_age=None,max_age=None,gender_index=None):
+    def get_dummy_matches(self,lat=None,lon=None,radium_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
+        
+        location_based_search = all([x is not None for x in [lat,lon,radium_in_kms]])
+        text_based_search = len(text_search) > 0
+        if not (location_based_search or text_based_search): #We potentially have to go over all the huge table,let's see if that is the case and if so sample from it instead of going over the entire table.
+            percents_in_db = self._fraction_of_users(gender_index=gender_index, min_age=min_age, max_age=max_age,
+                                            desired_num_users=max_num_users)
+        else:
+            percents_in_db = 100
+        
+        table_sample_text = f' tablesample system({percents_in_db}) ' if percents_in_db<10  else ' '
+        
+        
 
         #The idea is to change the query string, and query args in accordance with the parameters required
-        query = 'SELECT count(*) FROM users WHERE true '
+        query = f'SELECT * FROM {SQL_CONSTS.TablesNames.DUMMY_USERS.value}  {table_sample_text} WHERE true '
         query_args = [] 
-        if all([x is not None for x in [lat,lon,radius]]):
-            query += f' and earth_box(ll_to_earth(%s,%s ),%s) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
-            query_args += [lat,lon,radius]
+        if location_based_search:
+            query += f' and earth_box(ll_to_earth(%s,%s ),%s*1000/1.609) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
+            query_args += [lat,lon,radium_in_kms]
+
         if min_age is not None:
             query += ' and age>=%s '
             query_args+= [min_age]
@@ -234,9 +268,26 @@ class PostgresClient:
         if gender_index is not None:
             query += ' and gender_index=%s'
             query_args += [gender_index]
+        if uid is not None:
+            query += f' and not cast ({SQL_CONSTS.DummyUsersColumns.POF_ID.value} as varchar)  in (select {SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value} from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s) '
+            query_args += [uid]
+        query += f' order by random() limit {max_num_users}'
+        if need_fr_data:
+            query = f'with selected_users as ({query}) ' \
+                             f'select * from (selected_users  join dummy_users_fr_data on selected_users.pof_id=dummy_users_fr_data.pof_id)'
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(query,query_args)
+                full_query = cursor.mogrify(query,query_args)
+                print(full_query)
+                data = sqlio.read_sql_query(full_query, connection)
+                return data
+
+    def user_info(self, uid):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+        
+                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.USERS.value} where {SQL_CONSTS.UsersColumns.FIREBASE_UID.value}=%s', (uid,))
                 results = cursor.fetchall()
-                results = [dict(result) for result in results]
-                return results
+        if len(results) ==0:
+            return {}
+        return dict(results[0])
