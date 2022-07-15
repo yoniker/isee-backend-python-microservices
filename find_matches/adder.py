@@ -27,4 +27,10 @@ DELETE FROM
 WHERE
     a.index < b.index
     AND a.pof_id = b.pof_id;
+
+
+select * from dummy_users_images where user_id in ('149921077','155505712','161836831')
+
+pg_dump dummy_users -t dummy_users_images> dummy_users_images.dump
+
 '''

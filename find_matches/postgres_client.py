@@ -59,7 +59,7 @@ class PostgresClient:
         try:
             with self.get_connection() as connection:
                 with connection.cursor() as cursor:
-                    print(cursor.mogrify(insert, data))
+                    #print(cursor.mogrify(insert, data))
                     cursor.execute(insert, data)
     
         except UniqueViolation as _:
@@ -76,7 +76,7 @@ class PostgresClient:
                     else:
                         primary_key_str = f'%({primary_key})s'
                     update += f" where {primary_key}={primary_key_str}"
-                    print(cursor.mogrify(update, data))
+                    #print(cursor.mogrify(update, data))
                     cursor.execute(update, data)
 
     def create_users_table(self):
@@ -211,6 +211,7 @@ class PostgresClient:
         return status_line
 
     def _fraction_of_users(self, gender_index, min_age=None, max_age=None,desired_num_users = 500):
+        min_age, max_age = round(min_age),round(max_age)
         if gender_index == 0:
             gender = SQL_CONSTS.DummyUsersGender.FEMALE.value
         elif gender_index == 1:
@@ -237,6 +238,24 @@ class PostgresClient:
                 if len(results)==0:
                     return {}
                 return dict(results[0])
+
+    def get_dummy_user_images(self,user_id):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.DUMMY_USERS_IMAGES.value} where {SQL_CONSTS.DummyUsersImagesColumns.USER_ID.value}=%s',(user_id,))
+                results = cursor.fetchall()
+                return [dict(result) for result in results]
+
+    def get_dummy_users_images(self,users_ids):
+        if len(users_ids)==0:
+            return []
+        user_ids = tuple(str(user_id) for user_id in users_ids)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.DUMMY_USERS_IMAGES.value} where {SQL_CONSTS.DummyUsersImagesColumns.USER_ID.value} in %s',(user_ids,))
+                results = cursor.fetchall()
+                return [dict(result) for result in results]
+
 
     def get_dummy_matches(self,lat=None,lon=None,radium_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
         
@@ -268,6 +287,9 @@ class PostgresClient:
         if gender_index is not None:
             query += ' and gender_index=%s'
             query_args += [gender_index]
+        if text_search is not None and len(text_search)>0:
+            query +=  f" and lower(description) like %s "
+            query_args += ['%'+text_search.lower()+'%']
         if uid is not None:
             query += f' and not cast ({SQL_CONSTS.DummyUsersColumns.POF_ID.value} as varchar)  in (select {SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value} from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s) '
             query_args += [uid]
@@ -291,3 +313,12 @@ class PostgresClient:
         if len(results) ==0:
             return {}
         return dict(results[0])
+
+    def get_celeb_embeddings(self,celeb_name):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.CELEBS_FR_DATA.value} where {SQL_CONSTS.CELEBS_FR_DataColumn.CELEBNAME.value}=%s', (celeb_name,))
+                results = cursor.fetchall()
+        if len(results) ==0:
+            return []
+        return dict(results[0])[SQL_CONSTS.CELEBS_FR_DataColumn.FR_DATA.value]

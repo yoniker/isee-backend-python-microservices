@@ -7,14 +7,27 @@ class SQL_CONSTS:
         IMAGES = 'images'
         USERS='users'
         DUMMY_USERS = 'dummy_users'
+        DUMMY_USERS_IMAGES = 'dummy_users_images'
         PARTICIPANTS='participants'
         UTIL_LOCATION = 'util_location'
         POF_STATE_LOCATION = 'util_pof_country_location'
         ONTARIO_POF_STATE_LOCATION = 'util_ontario_pof_country_location'
         DECISIONS = 'decisions'
+        CELEBS_FR_DATA = 'celebs_fr_data'
+        CELEBS_S3_IMAGES = 'celebs_s3_images'
         
-    
 
+
+    class CELEBS_FR_DataColumn(str,Enum):
+        CELEBNAME = 'celebname'
+        FR_DATA = 'fr_data'
+        PRIMARY_KEY = CELEBNAME
+    
+    class CELEBS_S3_ImagesColumns(str,Enum):
+        CELEBNAME = 'celebname'
+        FILENAME = 'filename'
+        PRIORITY = 'priority'
+        PRIMARY_KEY = f'({CELEBNAME},{FILENAME})'
 
     class UtilLocationColumns(str,Enum):
         DESCRIPTION = 'description'
@@ -32,6 +45,11 @@ class SQL_CONSTS:
 
     class DummyUsersColumns(str, Enum):
         POF_ID = 'pof_id'
+
+    class DummyUsersImagesColumns(str,Enum):
+        USER_ID = 'user_id'
+        FILENAME = 'filename'
+        PRIORITY = 'priority'
         
 
 
@@ -174,6 +192,13 @@ class SQL_CONSTS:
         MEN = 'Men'
         WOMEN = 'Women'
         EVERYONE = 'Everyone'
+    class DummyUsersGender(str,Enum):
+        MALE = 'Male'
+        FEMALE = 'Female'
+    class UserRadiusEnabled(str,Enum):
+        TRUE = 'true'
+        FALSE = 'false'
+        
 
 
      
