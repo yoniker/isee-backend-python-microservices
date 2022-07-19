@@ -6,7 +6,8 @@ img = Image.open('2.jpg')
 jsoned_image = image_to_jsoned_image(img)
 while True:
     t1 =time.time()
-    response = requests.get('http://shira.voilaserver.com/analyze/froms3/phil.jpg')
+    response = requests.get('http://services.voilaserver.com/analyze/froms3/phil.jpg')
     t2=time.time()
     print(f'{t2-t1}')
+    print(response)
     

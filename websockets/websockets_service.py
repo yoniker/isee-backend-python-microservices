@@ -46,7 +46,8 @@ async def register(request, websocket):
 
 async def send_websocket_message(user_id, message):
     if user_id not in connected_websockets:
-        print('user not found in connected_websockets!')
+        print(f'user {user_id} not found in connected_websockets!')
+        print(f'current users are {connected_websockets.keys()}')
         return False
     try:
         websocket = connected_websockets[user_id]

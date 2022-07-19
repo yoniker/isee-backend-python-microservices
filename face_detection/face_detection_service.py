@@ -6,7 +6,7 @@ import boto3
 from PIL import Image
 
 device='cpu'
-detection_nets = DetectionNets(device=device)
+detection_nets = DetectionNets(device=device,load_scripted=True)
 
 app = Flask(__name__)
 
@@ -37,10 +37,25 @@ def analyze_from_s3(demo_file_name):
     detections = detect_faces_task(img=img,is_jsoned=False)
     return jsonify({'filename': demo_file_name, 'detections': detections})
 
+@app.route('/analyze/local/<demo_file_name>')
+def analyze_from_local(demo_file_name):
+    img = Image.open(demo_file_name)
+    detections = detect_faces_task(img=img,is_jsoned=False)
+    return jsonify({'filename': demo_file_name, 'detections': detections})
+
 @app.route('/analyze/detection_healthcheck')
 def say_healthy():
     return jsonify({'status':'face detection service is up and running'})
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20001,host="0.0.0.0",debug=False)
+   app.run(threaded=True,port=5000,host="0.0.0.0",debug=False)
+
+
+
+'''
+docker build . -t face_service:1
+docker run -d -v /home/yoni/Projects/docker_services/face_detection:/home/face_detection_service -p5000:5000/tcp face_service:1
+
+
+'''
 
