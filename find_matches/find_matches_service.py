@@ -138,9 +138,9 @@ def get_user_matches(uid):
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value)
     search_distance_enabled = user_settings.get(SQL_CONSTS.UsersColumns.SEARCH_DISTANCE_ENABLED.value,SQL_CONSTS.UserRadiusEnabled.FALSE.value)
     if search_distance_enabled == SQL_CONSTS.UserRadiusEnabled.TRUE.value:
-      radius = None  
-    else:
       radius = user_settings.get(SQL_CONSTS.UsersColumns.RADIUS.value,50) #radius in kms
+    else:
+      radius = None
     max_age = user_settings.get(SQL_CONSTS.UsersColumns.MAX_AGE.value)
     min_age = user_settings.get(SQL_CONSTS.UsersColumns.MIN_AGE.value)
     gender_preferred = user_settings.get(SQL_CONSTS.UsersColumns.GENDER_PREFERRED,SQL_CONSTS.UsersPreferredGender.EVERYONE)
@@ -201,20 +201,20 @@ def say_healthy():
     return jsonify({'status':'matches service is up and running'})
 
 if __name__ == '__main__':
-   app.run(threaded=False,port=20002,host="0.0.0.0",debug=True)
+   app.run(threaded=True,port=20002,host="0.0.0.0",debug=False)
 
 
 
 '''
 
-docker build . -t find_matches:16
+docker build . -t find_matches:latest
 
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 360816483914.dkr.ecr.us-east-1.amazonaws.com
 
 docker tag find_matches:17 360816483914.dkr.ecr.us-east-1.amazonaws.com/find_matches:17
 docker push 360816483914.dkr.ecr.us-east-1.amazonaws.com/find_matches:17
 
-docker run -d -p -it 20002:20002/tcp find_matches:16
+docker run -d -p -it 20002:20002/tcp find_matches:latest
 
 
 
@@ -235,7 +235,9 @@ docker run -d  -it -p20002:20002/tcp try
 
 #PGPASSWORD=dordordor nohup psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < dummy_users_images.dump &
 
-#curl "localhost:20002/matches/5EX44AtZ5cXxW1O12G3tByRcC012"
+#curl "localhost:20002/matches/86BHzRMxENO7XN0goZYKaZuhSdf2"
+
+#services.voilaserver.com/matches/5EX44AtZ5cXxW1O12G3tByRcC012
 
 #psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < celebs.dump
 

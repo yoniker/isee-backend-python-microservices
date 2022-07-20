@@ -297,6 +297,7 @@ class PostgresClient:
         if need_fr_data:
             query = f'with selected_users as ({query}) ' \
                              f'select * from (selected_users  join dummy_users_fr_data on selected_users.pof_id=dummy_users_fr_data.pof_id)'
+        print(f'got here,query is {query}')
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
                 full_query = cursor.mogrify(query,query_args)
