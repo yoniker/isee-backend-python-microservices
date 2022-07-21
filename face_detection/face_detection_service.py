@@ -11,12 +11,15 @@ from FaceRecognition.backbone.api import load_recognition_model
 from FaceRecognition.util.extract_feature_v1 import pil_extract_feature
 from FaceDetection.api import FaceDetection
 import pickle
+import os
 
 
 device='cpu'
 detection_nets = DetectionNets(device=device)
 crop_size = 112 #crop size for FR system
 recognition_net = load_recognition_model(device='cpu')
+REAL_BUCKET = 'com.voiladating.users2'
+
 
 app = Flask(__name__)
 
@@ -30,14 +33,14 @@ def detect_faces_task(img,is_jsoned = True):
 
 def analyze(img,fr_data,display_images):
     detections = detect_faces_task(img=img,is_jsoned=False)
-    detections_data = {'detections':[],'fr_data':[],'aligned_images':[]}
+    detections_data = {'detections':[],'fr_data':[],'display_images':[]}
     for detection in detections:
         facial5points = detection.get_facial5points()
         aligned_face = Image.fromarray(warp_and_crop_face(np.array(img), facial5points, None, crop_size=(crop_size, crop_size)))
         features = pil_extract_feature([aligned_face],backbone=recognition_net)
         detections_data['detections'].append(detection.to_json())
         if fr_data: detections_data['fr_data'].append(features.tolist())
-        if display_images: detections_data['aligned_images'].append(image_to_jsoned_image(calc_image_around_face(detection=detection,image=img)))
+        if display_images: detections_data['display_images'].append(image_to_jsoned_image(calc_image_around_face(detection=detection,image=img)))
     return detections_data
 
 
@@ -64,11 +67,13 @@ def calc_image_around_face(detection,image):
    return Image.fromarray(np_image)
 
 
-@app.route('/analyze/froms3/<demo_file_name>')
-def analyze_from_s3(demo_file_name):
+@app.route('/analyze/froms3/<path:s3_path>')
+def analyze_from_s3(s3_path):
     s3 = boto3.client('s3')
-    s3.download_file('com.voiladating.users', f'demo_images/{demo_file_name}', demo_file_name)
-    img = Image.open(demo_file_name)
+    file_name = os.path.join('/cache',s3_path.split('/')[-1])
+    os.makedirs(os.path.dirname(file_name),exist_ok=True)
+    s3.download_file(REAL_BUCKET, s3_path, file_name)
+    img = Image.open(file_name)
     t1 = time.time()
     fr_data = request.args.get('fr_data',default='False')=='True'
     display_images = request.args.get('display_images',default='False')=='True'
