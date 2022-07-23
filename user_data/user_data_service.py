@@ -23,6 +23,8 @@ from datetime import datetime
 from image_utils import jsoned_image_to_image
 import numpy as np
 from srv_resolve import resolve_srv_addr
+from dateutil.relativedelta import relativedelta
+from functools import partial
 
 def calculate_birthday_timestamp(birthday_text):
     if birthday_text is None or len(birthday_text) == 0:
@@ -39,6 +41,7 @@ app = Flask(__name__)
 
 DUMMY_BUCKET = 'com.voiladating.dummy'
 REAL_BUCKET= 'com.voiladating.users2'
+CELEBS_BUCKET = 'com.voiladating.celebs'
 
 
 
@@ -48,8 +51,21 @@ aurora_password = 'dordordor'
 
 
 app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_writer_host)
+app.config.local_cache_dir = 'tmp/local_cache'
+os.makedirs(app.config.local_cache_dir,exist_ok=True)
 
+def generate_users_presigned_url(aws_key,bucket_name,expiresIn=60,region_name='us-east-1'):
+    session = boto3.session.Session()
+    s3_client = session.client('s3',region_name=region_name)
+    return s3_client.generate_presigned_url(
+        ClientMethod='get_object',
+        Params={'Bucket': bucket_name, 'Key': aws_key},
+        ExpiresIn=expiresIn)
 
+def get_real_user_images(user_id):
+    user_images_details = app.config.aurora_client.get_user_profile_images(user_id)
+    user_images_links = ['user_data/profile_images/real/' + x['filename'] for x in user_images_details]
+    return user_images_links
 
 
 @app.route('/user_data/settings/<userid>', methods=['POST'])
@@ -165,6 +181,110 @@ def say_healthy():
     print('dor')
     return jsonify({'status':'user data service is up and running'})
 
+@app.route('/user_data/celeb_image_links/<celebname>')
+def get_celeb_image_links(celebname):
+    res = app.config.aurora_client.get_celeb_images(celebname)
+    files_names = [x['filename'] for x in res]
+    celeb_image_links = [f'celeb_image/{celebname}/{x}' for x in files_names]
+    return jsonify({'celeb_image_links':celeb_image_links})
+
+@app.route('/user_data/celeb_image/<celeb_name>/<filename>')
+def get_celeb_image_url(celeb_name,filename):
+    #/celeb_image/Jackie Chan/1.jpeg
+    s3_client = boto3.client('s3')
+    object_key = f'{celeb_name}/{filename}'
+    presigned_url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': CELEBS_BUCKET, 'Key': object_key})
+    return redirect(presigned_url, code=302)
+
+
+@app.route('/user_data/profile_images/real/<user_id>/<filename>')
+def redirect_to_aws_real(user_id,filename):
+    aws_key = f'{user_id}/{filename}'
+    url = generate_users_presigned_url(aws_key=aws_key,bucket_name=REAL_BUCKET,expiresIn=300)
+    return redirect(url, code=302)
+
+@app.route('/user_data/upload_profile_image/<user_id>',methods=['POST'])
+def upload_profile_image(user_id):
+    # TODO Auth
+    full_file_uploaded_path = app.config.local_cache_dir + f"/{time.time()}_{user_id}_{random.randint(0,100000)}.jpg"
+    short_filename = os.path.basename(full_file_uploaded_path)
+    object_key = f'{user_id}/{short_filename}'
+    request.files["file"].save(full_file_uploaded_path)
+     #TODO verify file type,size etc
+    # Step 1:Save the file in AWS in the proper location (<userid/filename.jpg>)
+    upload_file_to_s3(full_file_uploaded_path, bucket=REAL_BUCKET, object_name=object_key)
+    # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
+    upload_data= {SQL_CONSTS.ImageColumns.TYPE.value: 'in_profile',
+    SQL_CONSTS.ImageColumns.BUCKET_NAME.value:REAL_BUCKET,
+    SQL_CONSTS.ImageColumns.FILENAME.value:object_key,
+    SQL_CONSTS.ImageColumns.USER_ID.value:user_id,
+    }
+    app.config.aurora_client.insert_new_image(upload_data=upload_data)
+    # Step 3.Delete the file from local cache
+    os.remove(full_file_uploaded_path)
+    return jsonify({'status':'success','image_url':'profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
+
+
+@app.route('/user_data/profile_images/get_urls/<user_id>',strict_slashes=False)
+def get_user_image_urls(user_id):
+    #TODO Auth
+    user_images_details = app.config.aurora_client.get_user_profile_images(user_id=user_id)
+    user_images_links = ['user_data/profile_images/real/'+x['filename'] for x in user_images_details]
+    return jsonify(user_images_links)
+
+#user_data/dummy/153367418/153367418.2.jpg
+@app.route('/user_data/dummy/<user_id>/<filename>')
+def redirect_to_aws_dummy(user_id,filename):
+    aws_key = f'{user_id}/{filename}'
+    url = generate_users_presigned_url(aws_key=aws_key,bucket_name=DUMMY_BUCKET,expiresIn=300,region_name='us-east-2')
+    return redirect(url, code=302)
+
+@app.route('/user_data/profile/<user_id>')
+def get_user_profile(user_id): #TODO move this functionality to find_matches?
+    #TODO auth
+    user_data = app.config.aurora_client.get_user_profile(user_id=user_id)
+    if len(user_data) == 0 :
+        return jsonify({'status':'not_found'}),404
+    user_images_links = get_real_user_images(user_id)
+    user_data[SQL_CONSTS.ADDED_USER_COLUMNS.IMAGES.value] = user_images_links
+    current_date = datetime.now()
+    try:
+        user_data[SQL_CONSTS.ADDED_USER_COLUMNS.AGE.value] = \
+            partial(relativedelta, current_date)(datetime.fromtimestamp(user_data[SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value])).years
+    except:
+        pass
+    return jsonify({'status':'found','user_data':user_data})
+
+@app.route('/user_data/profile_image/<user_id>')
+def get_profile_image(user_id):
+    # TODO Auth
+    user_images_details = app.config.aurora_client.get_user_profile_images(user_id=user_id)
+    user_images_links = [x['filename'] for x in user_images_details]
+    if len(user_images_links) == 0:
+        return redirect_to_aws_real(aws_key='app_assets/anonymous_user.jpg')
+    profile_image_url = user_images_links[0]
+    return redirect_to_aws_real(aws_key=profile_image_url)
+
+@app.route('/user_data/profile_images/swap/<user_id>',methods=['POST'])
+def swap_profile_images(user_id):
+    #TODO Auth
+    profile_image_prefix = 'user_data/profile_images/real/'
+    file1_key = request.get_json(force = True)['file1_url'][len(profile_image_prefix):]
+    file2_key = request.get_json(force = True)['file2_url'][len(profile_image_prefix):]
+    #TODO make sure the user is referring to his own files...
+    app.config.aurora_client.swap_images_priorities(image1_key=file1_key,image2_key=file2_key)
+    return jsonify({'status':'success'})
+
+@app.route('/user_data/profile_images/delete/<user_id>',methods=['POST'])
+def delete_profile_image(user_id):
+    #TODO Auth
+    profile_image_prefix = 'user_data/profile_images/real/'
+    file_key = request.get_json(force = True)['file_url'][len(profile_image_prefix):]
+    #TODO make sure that the user refers to his own files
+    app.config.aurora_client.delete_image(image_key=file_key)
+    #TODO in the future,remove it after some time from s3. For now keep it, to make other users experience better in case they already have the link to this image somewhere
+    return jsonify({'status':'success'})
+
 if __name__ == '__main__':
    app.run(threaded=True,port=20003,host="0.0.0.0",debug=False)
 
@@ -174,6 +294,7 @@ if __name__ == '__main__':
 
 docker build . -t user_data
 docker run -d -it -p  20003:20003/tcp user_data:latest
+curl "localhost:20003/user_data/celeb_image_links/Jackie Chan"
 curl localhost:20003/user_data/custom_face_search_image/5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658365948.861391/0.jpg
 curl localhost:20003/user_data/analyze_custom_image/5EX44AtZ5cXxW1O12G3tByRcC012/name2.jpg
 services.voilaserver.com/user_data/analyze_custom_image/5EX44AtZ5cXxW1O12G3tByRcC012/name2.jpg
@@ -211,4 +332,8 @@ SELECT count(*) FROM dummy_users
 working:
 https://s3.amazonaws.com/com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658365948.861391/0.jpg?AWSAccessKeyId=AKIAVIASWTZFO7GHDZF4&Signature=WnXnmBMxG5O96YM7JC9EBK4sj6c%3D&Expires=1658382580
 not working:
-https://s3.amazonaws.com/com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658365948.861391/0.jpg?AWSAccessKeyId=AKIAVIASWTZFO7GHDZF4&amp;Signature=WnXnmBMxG5O96YM7JC9EBK4sj6c%3D&amp;Expires=1658382580'''
+https://s3.amazonaws.com/com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658365948.861391/0.jpg?AWSAccessKeyId=AKIAVIASWTZFO7GHDZF4&amp;Signature=WnXnmBMxG5O96YM7JC9EBK4sj6c%3D&amp;Expires=1658382580
+
+aws s3 sync s3://com.voiladating.dummy s3://com.voiladating.dummy2 --source-region us-east-2 --region us-east-1
+
+'''

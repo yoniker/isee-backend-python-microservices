@@ -13,7 +13,7 @@ import pickle
 
 
 class PostgresClient:
-    def __init__(self,minconn=1,maxconn=20,database='real_users',
+    def __init__(self,minconn=100,maxconn=200,database='real_users',
                                                          user='yoni',
                                                          password='dor',
                                                          host='localhost'):
@@ -38,7 +38,7 @@ class PostgresClient:
         try:
             yield con
         finally:
-            self.pool.putconn(con)
+            self.pool.putconn(con,close=True)
     def _update_table_by_dict(self, table_name, data, primary_key):
         '''
 
@@ -208,6 +208,16 @@ class PostgresClient:
             with connection.cursor() as cursor:
                 status_line = cursor.execute(sql_cmd, data)
         return status_line
+
+    def get_celeb_images(self,celeb_name):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                sql_cmd = f'select * from {SQL_CONSTS.TablesNames.CELEBS_S3_IMAGES.value} where {SQL_CONSTS.CELEBS_S3_ImagesColumns.CELEBNAME.value}=%s order by priority asc'
+                data=(celeb_name,)
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
 
     def update_user_data(self, user_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_data,primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID)

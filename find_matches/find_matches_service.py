@@ -42,6 +42,7 @@ DUMMY_COLUMNS_TO_REAL_NAMES = {
 }
 
 DUMMY_BUCKET = 'com.voiladating.dummy'
+REAL_BUCKET = 'com.voiladating.users2'
 
 def pof_height_to_height_in_cm(height):
     try:
@@ -65,15 +66,20 @@ def get_exact_distance(match,user_location):
 def get_dummy_users_images(users):
    start_time = time.time()
    users_ids = [str(user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]) for user in users]
-   images_data = aurora_client.get_dummy_users_images(users_ids = users_ids)
+   images_data = app.config.aurora_client.get_dummy_users_images(users_ids = users_ids)
    for user in users:
     user_id = str(user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value])
     user_images = [image_info[SQL_CONSTS.DummyUsersImagesColumns.FILENAME.value] for image_info in images_data if image_info[SQL_CONSTS.DummyUsersImagesColumns.USER_ID.value]==user_id]
     user_images.sort() #I could use priority as in real users but meh.
-    user['images'] = [f'/dummy/{user_id}/{user_image}' for user_image in user_images]
+    user['images'] = [f'user_data/dummy/{user_id}/{user_image}' for user_image in user_images]
    
    print(f'It took {time.time()-start_time} to get users images')
    return users
+
+def get_real_user_images(user_id):
+    user_images_details = app.config.aurora_client.get_user_profile_images(user_id)
+    user_images_links = ['user_data/profile_images/real/' + x['filename'] for x in user_images_details]
+    return user_images_links
 
 #TODO make the following env variables
 aurora_reader_host = 'voila-aurora-cluster.cluster-ro-ck82h9f9wsbf.us-east-1.rds.amazonaws.com'
@@ -81,7 +87,7 @@ aurora_username = 'yoni'
 aurora_password = 'dordordor'
 
 
-aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
+app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
 
 
 def settings_require_face_recognition(user_settings):
@@ -93,7 +99,7 @@ def settings_require_face_recognition(user_settings):
 
 
 def get_celeb_embeddings(celeb_name):
-  embedding = pickle.loads(aurora_client.get_celeb_embeddings(celeb_name=celeb_name))
+  embedding = pickle.loads(app.config.aurora_client.get_celeb_embeddings(celeb_name=celeb_name))
   return embedding
 
 def filter_current_matches_by_embedding(embeddings,current_user_matches,threshold=FACE_RECOGNITION_THRESHOLDS['best'],max_users_to_check=2000):
@@ -107,6 +113,25 @@ def filter_current_matches_by_embedding(embeddings,current_user_matches,threshol
    current_user_matches = current_user_matches[current_user_matches.fr_distance < threshold]
    print(f'FINISHED APPLYING AI EMBEDDINGS FILTERS,IT TOOK {time.time()-t0} seconds!')   
    return current_user_matches
+
+def get_custom_embeddings(custom_embedding_link):
+  #example of a custom embedding link:
+  #5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658413515.446852/0.jpg
+  s3_dir = '/'.join(custom_embedding_link.split('/')[:-1]) #'5EX44AtZ5cXxW1O12G3tByRcC012/custom_image/analysis1658413515.446852'
+  local_dir = os.path.join('/tmp',s3_dir)
+  short_filename = custom_embedding_link.split('/')[-1] #0.jpg
+  short_filename = '.'.join(short_filename.split('.')[:-1])+'.pickle' #0.pickle
+  full_local_filename = os.path.join(local_dir,short_filename)
+  full_s3_key = os.path.join(s3_dir,short_filename)
+  os.makedirs(local_dir,exist_ok=True)
+  s3 = boto3.client('s3')
+  with open(full_local_filename, 'wb') as f:
+    s3.download_fileobj(REAL_BUCKET, full_s3_key, f)
+  with open(full_local_filename, 'rb') as handle:
+    custom_embedding = pickle.load(handle)
+  custom_embedding = custom_embedding.squeeze()
+  os.remove(full_local_filename)
+  return custom_embedding
 
 
 @app.route('/matches/perform_query_aws')
@@ -122,7 +147,7 @@ def perform_query_aws():
     limit = int(request.args.get('limit') or 100)
     need_fr_data = request.args.get('fr')=='true'
     t1 = time.time()
-    result = aurora_client.get_matches(lat=lat,lon=lon,radius=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,max_num_users=limit)
+    result = app.config.aurora_client.get_matches(lat=lat,lon=lon,radius=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,max_num_users=limit)
     t2 = time.time()
     if need_fr_data:
       result['fr_data'] = result.fr_data.transform(pickle.loads)
@@ -131,7 +156,7 @@ def perform_query_aws():
 
 @app.route('/matches/<uid>')
 def get_user_matches(uid):
-    user_settings = aurora_client.user_info(uid=uid)
+    user_settings = app.config.aurora_client.user_info(uid=uid)
     if len(user_settings)==0:
       return jsonify({'status':f'no user with uid {uid} was found'}),404
     lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value)
@@ -158,7 +183,7 @@ def get_user_matches(uid):
 
     limit = 2000 if need_fr_data else 20 #TODO move to server consts
     t1 = time.time()
-    current_user_matches = aurora_client.get_dummy_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+    current_user_matches = app.config.aurora_client.get_dummy_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
     t2 = time.time()
     current_user_matches[SQL_CONSTS.UsersColumns.HEIGHT_IN_CM.value]= current_user_matches['height'].apply(pof_height_to_height_in_cm)
     current_user_matches['user_type'] = 'dummy'
@@ -171,12 +196,15 @@ def get_user_matches(uid):
     if need_fr_data:
       current_user_matches['fr_data'] = current_user_matches.fr_data.transform(pickle.loads)
       #Let's sort by fr!
+      search_embedding = None
       if user_settings.get(SQL_CONSTS.UsersColumns.FILTER_NAME.value,None) == SQL_CONSTS.FilterTypes.CELEB_IMAGE.value and len(user_settings.get(SQL_CONSTS.UsersColumns.CELEB_ID.value, '')) > 0:
-        celeb_embedding = get_celeb_embeddings(celeb_name=user_settings.get(SQL_CONSTS.UsersColumns.CELEB_ID.value))
-        if len(celeb_embedding) ==0 : 
-          return jsonify({'status':'celeb embedding not found'}) , 404
-        current_user_matches = filter_current_matches_by_embedding(embeddings=celeb_embedding,current_user_matches=current_user_matches)
-        
+        search_embedding = get_celeb_embeddings(celeb_name=user_settings.get(SQL_CONSTS.UsersColumns.CELEB_ID.value))
+      if user_settings.get(SQL_CONSTS.UsersColumns.FILTER_NAME.value,None) == SQL_CONSTS.FilterTypes.CUSTOM_IMAGE.value and len(user_settings.get(SQL_CONSTS.UsersColumns.FILTER_DISPLAY_IMAGE.value, '')) > 0:
+        search_embedding = get_custom_embeddings(custom_embedding_link=user_settings.get(SQL_CONSTS.UsersColumns.FILTER_DISPLAY_IMAGE.value))
+      if search_embedding is None or len(search_embedding) ==0 : 
+          return jsonify({'status':'embeddings not found'}) , 404
+      current_user_matches = filter_current_matches_by_embedding(embeddings=search_embedding,current_user_matches=current_user_matches)
+      
     current_user_matches = current_user_matches.sample(min(ServerConsts.LIMITS.MAX_MATCHES_PER_USER_QUERY.value,len(current_user_matches)))
     if 'fr_data' in current_user_matches: #we don't want to save the embeddings in redis because 1.not serialable 2.memory
         current_user_matches.drop(columns=['fr_data'],inplace=True)

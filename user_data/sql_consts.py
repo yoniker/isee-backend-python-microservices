@@ -13,8 +13,21 @@ class SQL_CONSTS:
         POF_STATE_LOCATION = 'util_pof_country_location'
         ONTARIO_POF_STATE_LOCATION = 'util_ontario_pof_country_location'
         DECISIONS = 'decisions'
+        CELEBS_FR_DATA = 'celebs_fr_data'
+        CELEBS_S3_IMAGES = 'celebs_s3_images'
         
 
+
+    class CELEBS_FR_DataColumn(str,Enum):
+        CELEBNAME = 'celebname'
+        FR_DATA = 'fr_data'
+        PRIMARY_KEY = CELEBNAME
+    
+    class CELEBS_S3_ImagesColumns(str,Enum):
+        CELEBNAME = 'celebname'
+        FILENAME = 'filename'
+        PRIORITY = 'priority'
+        PRIMARY_KEY = f'({CELEBNAME},{FILENAME})'
 
     class UtilLocationColumns(str,Enum):
         DESCRIPTION = 'description'
@@ -182,6 +195,9 @@ class SQL_CONSTS:
     class DummyUsersGender(str,Enum):
         MALE = 'Male'
         FEMALE = 'Female'
+    class UserRadiusEnabled(str,Enum):
+        TRUE = 'true'
+        FALSE = 'false'
         
 
 

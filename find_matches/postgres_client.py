@@ -267,7 +267,7 @@ class PostgresClient:
         else:
             percents_in_db = 100
         
-        table_sample_text = f' tablesample system({percents_in_db}) ' if percents_in_db<10  else ' '
+        table_sample_text = f' tablesample system({percents_in_db*10}) ' if percents_in_db<10  else ' '
         
         
 
@@ -323,3 +323,6 @@ class PostgresClient:
         if len(results) ==0:
             return []
         return dict(results[0])[SQL_CONSTS.CELEBS_FR_DataColumn.FR_DATA.value]
+'''
+
+'''
