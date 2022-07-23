@@ -283,7 +283,7 @@ class PostgresClient:
         :param value_dicts: dict of keys-column names,values - the values to be inserted
         :return:
         '''
-        insert_command = f"insert into {tablename} ({','.join(str(k) for k in value_dicts)}) values ({','.join('%s')})"
+        insert_command = f"insert into {tablename} ({','.join(str(k) for k in value_dicts)}) values ({','.join(['%s' for _ in range(len(value_dicts))])})"
         if ignore_conflict:
             insert_command += ' ON CONFLICT DO NOTHING'
         values = tuple(value_dicts[k] for k in value_dicts)
@@ -310,6 +310,7 @@ class PostgresClient:
                     cursor.execute(
                         f"insert into {SQL_CONSTS.TablesNames.PARTICIPANTS.value}({SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value},{SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}) values (%s,%s);",
                         (conversation_key, other_user_id))
+                    connection.commit()
                 
             return conversation_key
 
@@ -324,6 +325,7 @@ class PostgresClient:
                 sql_cmd = f'select * from {SQL_CONSTS.TablesNames.USERS.value} where {SQL_CONSTS.UsersColumns.FIREBASE_UID.value} '\
                           f'in (select {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value} from {SQL_CONSTS.TablesNames.PARTICIPANTS.value} where {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value}=%s)'
                 data = (conversation_id,)
+                print(f'at get_users_by_conversation i am gonna execute {cursor.mogrify(sql_cmd,data)}')
                 cursor.execute(sql_cmd,data)
                 results = cursor.fetchall()
                 results = [dict(result) for result in results]
@@ -360,7 +362,7 @@ class PostgresClient:
             with connection.cursor() as cursor:
                 cursor.execute(post_message_cmd, post_message_data)
                 for user in users:
-                    iterated_user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID]
+                    iterated_user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
                     print(iterated_user_id)
                     receipt_cmd, receipt_data = self.create_receipt_command(user_id=iterated_user_id,
                                                                             message_id=message_id,initial_timestamp=0 if iterated_user_id!=creator_id else created_date)  # TODO: create receipts for all users in conversation

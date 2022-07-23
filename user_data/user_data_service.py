@@ -401,6 +401,7 @@ def post_message(conversation_id, creator_id, content,sender_epoch_time):
    :return:
    '''
    message_users_data = app.config.aurora_client.post_message(conversation_id, creator_id, content,sender_epoch_time = sender_epoch_time,created_date=time.time(),status='created')
+   print(f'message users data is {message_users_data}')
    users_in_chat_details = message_users_data['users_in_conversation']
    message_details = dict(message_users_data['message_details'])
    message_details['push_notification_type'] = 'new_message'
@@ -425,7 +426,7 @@ def post_message(conversation_id, creator_id, content,sender_epoch_time):
 
 
 @app.route('/user_data/send_message/<user_id>', methods=['POST'])
-def start_conversation(request, user_id):
+def start_conversation(user_id):
     # TODO: check if userid matches the one in dict, add some security layer
     message_data = request.get_json(force=True)
     other_user_id = message_data['other_user_id']
@@ -435,6 +436,7 @@ def start_conversation(request, user_id):
     # TODO and anyways return the conversation id.
     # TODO make sure the user has credentials
     conversation_id = app.config.aurora_client.create_conversation(user_id, other_user_id)
+    print(f'post message going to be called with {conversation_id} {user_id} {message_content} {sender_epoch_time}')
     post_message(conversation_id=conversation_id, creator_id=user_id, content=message_content,
                        sender_epoch_time=sender_epoch_time)
     return jsonify({'result': 'success'})
@@ -460,9 +462,9 @@ def get_all_messages(userid, timestamp):
     data = {'messages_data':list(relevant_messages_dict.values()),'matches_data':relevant_matches_changes}
     return jsonify(data)
 
-@app.route('user_data/mark_conversation_read/<userid>/<conversation_id>', methods=['GET'])
-async def mark_conversation_read(userid, conversation_id):
-    receipts_changed = await app.config.aurora_client.mark_conersation_read(userid, conversation_id, time.time())
+@app.route('/user_data/mark_conversation_read/<userid>/<conversation_id>', methods=['GET'])
+def mark_conversation_read(userid, conversation_id):
+    receipts_changed = app.config.aurora_client.mark_conersation_read(userid, conversation_id, time.time())
     if receipts_changed > 0:
         users_to_notify = app.config.aurora_client.get_users_by_conversation(conversation_id)
         data = {'push_notification_type': 'new_read_receipt'}  # TODO add more data here if and when needed...
