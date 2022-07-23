@@ -242,7 +242,7 @@ def redirect_to_aws_dummy(user_id,filename):
 @app.route('/user_data/profile/<user_id>')
 def get_user_profile(user_id): #TODO move this functionality to find_matches?
     #TODO auth
-    user_data = app.config.aurora_client.get_user_profile(user_id=user_id)
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
     if len(user_data) == 0 :
         return jsonify({'status':'not_found'}),404
     user_images_links = get_real_user_images(user_id)
@@ -261,8 +261,10 @@ def get_profile_image(user_id):
     user_images_details = app.config.aurora_client.get_user_profile_images(user_id=user_id)
     user_images_links = [x['filename'] for x in user_images_details]
     if len(user_images_links) == 0:
-        return redirect_to_aws_real(aws_key='app_assets/anonymous_user.jpg')
+        return redirect_to_aws_real(user_id='app_assets',filename= 'anonymous_user.jpg')
     profile_image_url = user_images_links[0]
+    username,filename = profile_image_url.split('/')
+    print(f'profile image username is {username} filename is {filename}')
     return redirect_to_aws_real(aws_key=profile_image_url)
 
 @app.route('/user_data/profile_images/swap/<user_id>',methods=['POST'])
@@ -284,6 +286,193 @@ def delete_profile_image(user_id):
     app.config.aurora_client.delete_image(image_key=file_key)
     #TODO in the future,remove it after some time from s3. For now keep it, to make other users experience better in case they already have the link to this image somewhere
     return jsonify({'status':'success'})
+
+
+def send_message(user_id,data,fcm_token=None,notification_title=None,notification_body=None):
+    
+        requests.post(url='https://services.voilaserver.com/messaging/send_message',json=
+        {
+            'user_id':user_id,
+            'fcm_token':fcm_token,
+            'notification_title':notification_title,
+            'notification_body':notification_body,
+            'data': data
+
+
+        })
+
+
+
+def update_match(user_id1,user_id2,match_new_status):
+    current_time = time.time()
+    match_data = {
+        SQL_CONSTS.MatchColumns.TIMESTAMP_CREATED.value: current_time,
+        SQL_CONSTS.MatchColumns.TIMESTAMP_CHANGED.value: current_time,
+        SQL_CONSTS.MatchColumns.ID_USER1.value: user_id1,
+        SQL_CONSTS.MatchColumns.ID_USER2.value: user_id2,
+        SQL_CONSTS.MatchColumns.STATUS.value: match_new_status,
+    }
+    app.config.aurora_client.update_match(match_data=match_data)
+    user1 = app.config.aurora_client.get_user_by_id(user_id=user_id1)
+    user2 = app.config.aurora_client.get_user_by_id(user_id=user_id2)
+    if match_new_status == SQL_CONSTS.MatchConsts.ACTIVE_MATCH.value:  # It's a new match
+        data = {'push_notification_type': 'new_match'}
+        send_notification = True
+    else:
+        data = {'push_notification_type': 'match_info'}
+        send_notification = False
+    for user in [user1,user2]:
+        print(f'sending notification to {user}')
+        if user==user1:
+            other_user_id = user2[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
+            other_user_name = user2[SQL_CONSTS.UsersColumns.NAME.value]
+        else:
+            other_user_id = user1[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
+            other_user_name = user1[SQL_CONSTS.UsersColumns.NAME.value]
+        data['user_id'] = other_user_id
+        fcm_token = user[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
+        user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
+        print(f'sending message to user {user_id}')
+        send_message(user_id=user_id,fcm_token=fcm_token,
+        notification_title="You have a new match!!" if send_notification else None,
+        notification_body=f"You got matched with {other_user_name}!" if send_notification else None,
+        data=data)
+
+
+
+def remove_likes(user_id1,user_id2):
+    current_time = time.time()
+    for users in [(user_id1,user_id2),(user_id2,user_id1)]:
+        u1,u2 = users
+        unlike_data = {
+            SQL_CONSTS.DecisionsColumns.DECIDER_ID.value:u1,
+            SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value:u2,
+            SQL_CONSTS.DecisionsColumns.DECISION.value: SQL_CONSTS.DecisionsTypes.UNMATCHED.value,
+            SQL_CONSTS.DecisionsColumns.DECISION_TIMESTAMP.value:current_time,
+            
+        }
+        app.config.aurora_client.update_decisions(unlike_data)
+
+@app.route('/user_data/match/<user_id1>/<user_id2>',methods=['GET'])
+def match_users(user_id1,user_id2): #TODO remove from app api?
+    #TODO auth
+    update_match(user_id1=user_id1, user_id2=user_id2,
+        match_new_status=SQL_CONSTS.MatchConsts.ACTIVE_MATCH.value)
+    return jsonify({'result': 'success', 'action': 'match'})
+
+@app.route('/user_data/unmatch/<user_id1>/<user_id2>',methods=['GET'])
+def unmatch_users(user_id1,user_id2):
+    remove_likes(user_id1, user_id2)
+    update_match(user_id1=user_id1, user_id2=user_id2,
+        match_new_status=SQL_CONSTS.MatchConsts.CANCELLED_MATCH.value)
+    return jsonify({'result': 'success', 'action': 'unmatch'})
+
+
+
+@app.route('/user_data/decision/<userid>',methods=['POST'])
+def post_user_decision(userid):
+    #TODO Auth
+    decision_data = request.get_json(force=True)
+    decision_data.update({SQL_CONSTS.DecisionsColumns.DECISION_TIMESTAMP:time.time()})
+    app.config.aurora_client.post_decision(decision_data)
+    #TODO if the decision was like, and decidee already liked the user,it's a match so create a match
+    decision = decision_data.get(SQL_CONSTS.DecisionsColumns.DECISION.value,SQL_CONSTS.DecisionsTypes.NOPE.value)
+    other_user_id = decision_data.get(SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value,'id_didnt_exist_in_dict')
+    if decision in [SQL_CONSTS.DecisionsTypes.LIKE.value,SQL_CONSTS.DecisionsTypes.SUPERLIKE.value]:
+        other_user_decision = app.config.aurora_client.get_decision(decider=other_user_id,decidee = userid)
+        if other_user_decision is not None and other_user_decision.get(SQL_CONSTS.DecisionsColumns.DECISION,SQL_CONSTS.DecisionsTypes.NOPE.value) in [SQL_CONSTS.DecisionsTypes.LIKE.value,SQL_CONSTS.DecisionsTypes.SUPERLIKE.value]:
+            match_users(userid1=userid,userid2=other_user_id)
+    return jsonify({'status':'success'})
+
+@app.route('/user_data/clear_likes/<userid>')
+def clear_likes(userid): #TODO this was done to facilitate development,remove at production
+    #TODO auth
+    app.config.aurora_client.clear_user_choices(user_id = userid)
+    return jsonify({'status': 'success'})
+
+
+
+def post_message(conversation_id, creator_id, content,sender_epoch_time):
+   '''
+   Post a new message in conversation id. Assumes that the conversation was previously created
+   :param conversation_id:
+   :param creator_id:
+   :param content: The json content of the message. For example: {type:text,content:'Hi there!'}
+   :return:
+   '''
+   message_users_data = app.config.aurora_client.post_message(conversation_id, creator_id, content,sender_epoch_time = sender_epoch_time,created_date=time.time(),status='created')
+   users_in_chat_details = message_users_data['users_in_conversation']
+   message_details = dict(message_users_data['message_details'])
+   message_details['push_notification_type'] = 'new_message'
+   sender_details = app.config.aurora_client.get_user_by_id(creator_id)
+   for user_to_notify in users_in_chat_details:
+      print(f'Sending to user {user_to_notify[SQL_CONSTS.UsersColumns.NAME.value]}...')
+      if user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value] != sender_details[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]:
+         #It's a different participant than the notified user, so send with sender details
+         data = dict(message_details)
+         data.update({'sender_details':json.dumps(sender_details)})
+         send_message(user_id=user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],
+         fcm_token=user_to_notify[SQL_CONSTS.UsersColumns.FCM_TOKEN.value], 
+         data=data,
+         notification_title="You have a new message!",
+         notification_body=f"{sender_details[SQL_CONSTS.UsersColumns.NAME]} sent you a new message!")
+      else:
+         data = dict(message_details)
+         send_message(user_id=user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],
+                               fcm_token=user_to_notify[SQL_CONSTS.UsersColumns.FCM_TOKEN.value],
+                                     data=data)
+   return jsonify({'result': 'success'})
+
+
+@app.route('/user_data/send_message/<user_id>', methods=['POST'])
+def start_conversation(request, user_id):
+    # TODO: check if userid matches the one in dict, add some security layer
+    message_data = request.get_json(force=True)
+    other_user_id = message_data['other_user_id']
+    message_content = message_data['message_content']
+    sender_epoch_time = message_data['sender_epoch_time']
+    # TODO: Check if the chat already exist. Create the chat if it doesnt exist.
+    # TODO and anyways return the conversation id.
+    # TODO make sure the user has credentials
+    conversation_id = app.config.aurora_client.create_conversation(user_id, other_user_id)
+    post_message(conversation_id=conversation_id, creator_id=user_id, content=message_content,
+                       sender_epoch_time=sender_epoch_time)
+    return jsonify({'result': 'success'})
+
+
+@app.route('/user_data/sync/<userid>/<timestamp>', methods=['GET'])
+def get_all_messages(userid, timestamp):
+
+    relevant_messages = app.config.aurora_client.get_all_user_messages_by_timeline(userid=userid, timestamp=timestamp)
+    relevant_messages_dict = {relevant_message[SQL_CONSTS.MessagesColumns.MESSAGE_ID.value]: relevant_message for
+                                relevant_message in relevant_messages}
+    relevant_receipts = app.config.aurora_client.get_all_user_receipts_by_timeline(userid=userid, timestamp=timestamp)
+    for relevant_receipt in relevant_receipts:
+        message_id = relevant_receipt[SQL_CONSTS.ReceiptColumns.MESSAGE_ID]
+        if message_id not in relevant_messages_dict:  # The message was not changed but there's a receipt. For now put all the info in the dict anyways
+            relevant_messages_dict[message_id] = dict(relevant_receipt)  # make a copy
+            del relevant_messages_dict[message_id][SQL_CONSTS.ReceiptColumns.SENT_TS]
+            del relevant_messages_dict[message_id][SQL_CONSTS.ReceiptColumns.READ_TS]
+        if 'receipts' not in relevant_messages_dict[message_id]:
+            relevant_messages_dict[message_id]['receipts'] = []
+        relevant_messages_dict[message_id]['receipts'].append(relevant_receipt)
+    relevant_matches_changes = app.config.aurora_client.get_matches_by_timeline(userid=userid,timestamp=timestamp)
+    data = {'messages_data':list(relevant_messages_dict.values()),'matches_data':relevant_matches_changes}
+    return jsonify(data)
+
+@app.route('user_data/mark_conversation_read/<userid>/<conversation_id>', methods=['GET'])
+async def mark_conversation_read(userid, conversation_id):
+    receipts_changed = await app.config.aurora_client.mark_conersation_read(userid, conversation_id, time.time())
+    if receipts_changed > 0:
+        users_to_notify = app.config.aurora_client.get_users_by_conversation(conversation_id)
+        data = {'push_notification_type': 'new_read_receipt'}  # TODO add more data here if and when needed...
+        for user_to_notify in users_to_notify:
+            print(f'Sending to user {user_to_notify[SQL_CONSTS.UsersColumns.NAME.value]}...')
+            send_message(
+                user_id=user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],
+                fcm_token=user_to_notify[SQL_CONSTS.UsersColumns.FCM_TOKEN.value],
+                data=data)
+    return jsonify({'result': 'success'})
 
 if __name__ == '__main__':
    app.run(threaded=True,port=20003,host="0.0.0.0",debug=False)
@@ -320,6 +509,15 @@ aws s3 presign s3://com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/custom_i
 
 '''
 
+Jennifer ID
+5EX44AtZ5cXxW1O12G3tByRcC012
+Yoni:
+either 
+OdTJPB8VryaHE31305GeoPeZaoD3
+or
+yWfbjwpoZ3P7Ai3XyPmAfoMYya42
+
+https://services.voilaserver.com/user_data/match/5EX44AtZ5cXxW1O12G3tByRcC012/yWfbjwpoZ3P7Ai3XyPmAfoMYya42
 
 SELECT count(*) FROM dummy_users
   WHERE earth_box(ll_to_earth(40.71427000, -74.00597000), 50000) @> ll_to_earth(latitude, longitude) and age>20 and age<55 and not cast (pof_id as varchar)  in (select decidee_id from decisions where decider_id='kRlw3NNKk5aavKfYEupXroBcfYp1')

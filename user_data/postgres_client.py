@@ -13,7 +13,7 @@ import pickle
 
 
 class PostgresClient:
-    def __init__(self,minconn=100,maxconn=200,database='real_users',
+    def __init__(self,minconn=20,maxconn=200,database='real_users',
                                                          user='yoni',
                                                          password='dor',
                                                          host='localhost'):
@@ -32,9 +32,9 @@ class PostgresClient:
         return 'Postgres Client @'+self.user+'@'+self.host
         
     @contextmanager
-    def get_connection(self):
+    def get_connection(self,autocommit=None):
         con = self.pool.getconn()
-        con.autocommit = self.autocommit
+        con.autocommit = self.autocommit if autocommit is None else autocommit
         try:
             yield con
         finally:
@@ -221,3 +221,239 @@ class PostgresClient:
 
     def update_user_data(self, user_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_data,primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID)
+
+    @staticmethod
+    def canonize_match_data(match_dict):
+        #Order user1,user2 in alphabetic order
+        if (SQL_CONSTS.MatchColumns.ID_USER1.value not in match_dict) or (
+                SQL_CONSTS.MatchColumns.ID_USER2.value not in match_dict):
+            raise ValueError('illegal match data')
+        if match_dict[SQL_CONSTS.MatchColumns.ID_USER1.value] > match_dict[SQL_CONSTS.MatchColumns.ID_USER2.value]:
+            match_dict[SQL_CONSTS.MatchColumns.ID_USER1.value], match_dict[SQL_CONSTS.MatchColumns.ID_USER2.value] = \
+            match_dict[SQL_CONSTS.MatchColumns.ID_USER2.value], match_dict[SQL_CONSTS.MatchColumns.ID_USER1.value]
+
+    def update_match(self,match_data):
+        PostgresClient.canonize_match_data(match_data)
+        self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.MATCHES,
+                                   data=match_data,
+                                   primary_key=SQL_CONSTS.MatchColumns.PRIMARY_KEY.value,)
+
+
+    def get_user_by_id(self, user_id):
+        '''
+        Get the user's details (name,FCM token etc.) according to the user's id 
+        :param user_id:
+        :return:
+        '''
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                sql_cmd = f'select * from {SQL_CONSTS.TablesNames.USERS.value} where {SQL_CONSTS.UsersColumns.FIREBASE_UID.value} = %s'
+                data=(user_id,)
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                if len(results) ==0:
+                    return None
+                return results[0]
+
+    def clear_user_choices(self,user_id):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f'delete from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s ',
+                    (user_id,)
+                )
+    
+    def update_decisions(self,decisions_data):
+         self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.DECISIONS.value,
+                                         data=decisions_data,
+                                         primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
+    
+    @staticmethod
+    def get_conversation_id(userid1,userid2):
+        if userid1 > userid2:
+            userid1,userid2 = userid2,userid1 #Swap,this makes sure that the id will be unique between two users
+        return f'conversation_{userid1}_with_{userid2}'
+
+    @staticmethod
+    def create_insert_command_from_dict(tablename,value_dicts,ignore_conflict = False):
+        '''
+        Create an insert command which is not SQL injectable (as long as the tablename isnt user input!)
+        :param tablename:
+        :param value_dicts: dict of keys-column names,values - the values to be inserted
+        :return:
+        '''
+        insert_command = f"insert into {tablename} ({','.join(str(k) for k in value_dicts)}) values ({','.join('%s')})"
+        if ignore_conflict:
+            insert_command += ' ON CONFLICT DO NOTHING'
+        values = tuple(value_dicts[k] for k in value_dicts)
+        return insert_command,values
+
+    def create_conversation(self,userid,other_user_id):
+        conversation_key = PostgresClient.get_conversation_id(userid,other_user_id)
+        with self.get_connection(autocommit=False) as connection:
+            with connection.cursor() as cursor:
+                sql_query = f"select * from {SQL_CONSTS.TablesNames.CONVERSATIONS.value} where {SQL_CONSTS.ConversationsColumns.CONVERSATION_ID.value} = %s"
+                data = (conversation_key,)
+                cursor.execute(sql_query,data)
+                results = cursor.fetchall()
+            if len(results) == 0:
+                current_time = time.time()
+                val_dict = {SQL_CONSTS.ConversationsColumns.CONVERSATION_ID.value: conversation_key,
+                            SQL_CONSTS.ConversationsColumns.CREATION_TIME.value: current_time,
+                            SQL_CONSTS.ConversationsColumns.CHANGE_TIME.value: current_time}
+                with connection.cursor() as cursor:
+                    sql_cmd,sql_data = PostgresClient.create_insert_command_from_dict(tablename=SQL_CONSTS.TablesNames.CONVERSATIONS,value_dicts=val_dict)
+                    cursor.execute(sql_cmd,sql_data)
+                    cursor.execute(f"insert into {SQL_CONSTS.TablesNames.PARTICIPANTS.value}({SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value},{SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}) values (%s,%s);",
+                                             (conversation_key,userid))
+                    cursor.execute(
+                        f"insert into {SQL_CONSTS.TablesNames.PARTICIPANTS.value}({SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value},{SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}) values (%s,%s);",
+                        (conversation_key, other_user_id))
+                
+            return conversation_key
+
+    def get_users_by_conversation(self,conversation_id):
+        '''
+        Get all of the users in a specific conversation
+        :param conversation_id:
+        :return:
+        '''
+        with self.get_connection(autocommit=False) as connection:
+            with connection.cursor() as cursor:
+                sql_cmd = f'select * from {SQL_CONSTS.TablesNames.USERS.value} where {SQL_CONSTS.UsersColumns.FIREBASE_UID.value} '\
+                          f'in (select {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value} from {SQL_CONSTS.TablesNames.PARTICIPANTS.value} where {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value}=%s)'
+                data = (conversation_id,)
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
+    
+    def create_receipt_command(self, user_id, message_id, initial_timestamp = 0):
+        #primary_key = (SQL_CONSTS.ReceiptColumns.USER_ID,SQL_CONSTS.ReceiptColumns.MESSAGE_ID)
+        data = {
+            SQL_CONSTS.ReceiptColumns.READ_TS.value: initial_timestamp,
+            SQL_CONSTS.ReceiptColumns.SENT_TS.value: initial_timestamp,
+            SQL_CONSTS.ReceiptColumns.USER_ID.value: user_id,
+            SQL_CONSTS.ReceiptColumns.MESSAGE_ID.value: message_id
+        }
+        sql_cmd,sql_data = self.create_insert_command_from_dict(tablename=SQL_CONSTS.TablesNames.RECEIPTS,value_dicts=data,ignore_conflict=True)
+        return sql_cmd, sql_data
+
+    def post_message(self, conversation_id, creator_id, content,created_date,sender_epoch_time,status=None):
+        message_id = creator_id + '_' + conversation_id + '_' + str(sender_epoch_time)
+        #TODO if not found (name='') throw an error user not found.
+        value_dicts = {
+            SQL_CONSTS.MessagesColumns.MESSAGE_ID.value: message_id,
+            SQL_CONSTS.MessagesColumns.CONTENT.value: content,
+            SQL_CONSTS.MessagesColumns.CONVERSATION_ID.value: conversation_id,
+            SQL_CONSTS.MessagesColumns.CREATOR_USER_ID.value: creator_id,
+            SQL_CONSTS.MessagesColumns.CREATION_DATE.value: created_date,
+            SQL_CONSTS.MessagesColumns.CHANGE_DATE.value: created_date,
+            SQL_CONSTS.MessagesColumns.MESSAGE_STATUS.value: status,
+        }
+        post_message_cmd, post_message_data = PostgresClient.create_insert_command_from_dict(tablename=SQL_CONSTS.TablesNames.MESSAGES, value_dicts=value_dicts,ignore_conflict=True)
+        
+        users = self.get_users_by_conversation(conversation_id=conversation_id)
+        with self.get_connection(autocommit=False) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(post_message_cmd, post_message_data)
+                for user in users:
+                    iterated_user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID]
+                    print(iterated_user_id)
+                    receipt_cmd, receipt_data = self.create_receipt_command(user_id=iterated_user_id,
+                                                                            message_id=message_id,initial_timestamp=0 if iterated_user_id!=creator_id else created_date)  # TODO: create receipts for all users in conversation
+                    cursor.execute(receipt_cmd,receipt_data)
+            
+        
+            return {'message_details':value_dicts,'users_in_conversation':users}
+    
+    def get_all_user_messages_by_timeline(self, userid, timestamp):
+        sql_cmd = f"select * from {SQL_CONSTS.TablesNames.MESSAGES.value} where {SQL_CONSTS.MessagesColumns.CHANGE_DATE.value} > %s and {SQL_CONSTS.MessagesColumns.CONVERSATION_ID.value} in (select {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value} from {SQL_CONSTS.TablesNames.PARTICIPANTS} where {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}=%s);"
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd,(float(timestamp),userid))
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
+    def get_all_user_receipts_by_timeline(self,userid,timestamp):
+        '''
+        This is the raw version of a query such as the one implements:
+        select m.user_id as messages_user_id,*
+        from
+        (select *
+         from messages where conversation_id in (select conversation_id from participants)) m
+        inner
+        join(select *
+        from receipts where
+        read_ts > -1 or sent_ts > -1) r
+        on
+        m.message_id = r.message_id
+        '''
+        
+        sql_cmd = f"select m.{SQL_CONSTS.MessagesColumns.CREATOR_USER_ID.value} as {SQL_CONSTS.TablesNames.MESSAGES.value}_{SQL_CONSTS.MessagesColumns.CREATOR_USER_ID.value},* from (select * from {SQL_CONSTS.TablesNames.MESSAGES.value} where {SQL_CONSTS.MessagesColumns.CONVERSATION_ID.value} in (select {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value} " \
+              f"from {SQL_CONSTS.TablesNames.PARTICIPANTS.value} where {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}=%s)) m inner join (select * from {SQL_CONSTS.TablesNames.RECEIPTS.value} where {SQL_CONSTS.ReceiptColumns.READ_TS.value}>=%s or {SQL_CONSTS.ReceiptColumns.SENT_TS.value}>=%s) r on m.{SQL_CONSTS.MessagesColumns.MESSAGE_ID.value}=r.{SQL_CONSTS.ReceiptColumns.MESSAGE_ID.value}"
+        data =(userid,timestamp,timestamp,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
+    def get_matches_by_timeline(self, userid, timestamp):
+        '''
+        
+        Get all of the users with any change in status since <timestamp>
+        
+        Original query:
+        
+        
+        select * from users inner join ((select id_user1 as other_user_id,status from matches where id_user2='10218506033662362' and timestamp_changed>4) union (select id_user2 as other_user_id,status from matches where id_user1='10218506033662362' and timestamp_changed>4)) as relevant_matches on users.facebook_id=relevant_matches.other_user_id
+        
+        
+        :param userid:
+        :param timestamp:
+        :return: All the
+        '''
+
+        sql_cmd = f'select * from {SQL_CONSTS.TablesNames.USERS.value} inner join ((select {SQL_CONSTS.MatchColumns.ID_USER1.value} as other_user_id,{SQL_CONSTS.MatchColumns.TIMESTAMP_CHANGED.value} as match_changed_time,{SQL_CONSTS.MatchColumns.STATUS.value} from {SQL_CONSTS.TablesNames.MATCHES.value} where {SQL_CONSTS.MatchColumns.ID_USER2.value}=%s and {SQL_CONSTS.MatchColumns.TIMESTAMP_CHANGED.value}>=%s) '\
+                f' union (select {SQL_CONSTS.MatchColumns.ID_USER2.value} as other_user_id,{SQL_CONSTS.MatchColumns.TIMESTAMP_CHANGED.value} as match_changed_time,{SQL_CONSTS.MatchColumns.STATUS.value} from {SQL_CONSTS.TablesNames.MATCHES.value} where {SQL_CONSTS.MatchColumns.ID_USER1.value}=%s and {SQL_CONSTS.MatchColumns.TIMESTAMP_CHANGED}>=%s)) as relevant_matches on {SQL_CONSTS.TablesNames.USERS.value}.{SQL_CONSTS.UsersColumns.FIREBASE_UID.value}=relevant_matches.other_user_id order by match_changed_time asc'
+        data = (userid, timestamp,userid,timestamp)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
+    def mark_conersation_read(self,userid,conversation_id,timestamp):
+        '''
+        Update the receipts for userid such that in the conversation there are no unread (=0) receipts.
+        
+        The underlying SQL command is
+        update receipts set read_ts=8,sent_ts=8 where (message_id_,user_id) in (select message_id_,user_id from receipts where message_id_ in (select message_id_ from messages where conversation_id='conversation_103812845442994_with_107591908393522' and user_id<>'103812845442994') and (read_ts=0 or sent_ts=0))
+        
+        Notice that "for now" (possibly indefinetly since I don't think it will matter) sent and read receipts are the same (since there's no received message from client at background message handler)
+        
+        
+        :param userid:
+        :param conversation_id:
+        :return:
+        '''
+        
+        update_receipt_cmd = f"update {SQL_CONSTS.TablesNames.RECEIPTS.value} set {SQL_CONSTS.ReceiptColumns.READ_TS.value}=%s,{SQL_CONSTS.ReceiptColumns.SENT_TS.value}=%s where " \
+                  f"({SQL_CONSTS.ReceiptColumns.MESSAGE_ID.value},{SQL_CONSTS.ReceiptColumns.USER_ID.value}) in (select {SQL_CONSTS.ReceiptColumns.MESSAGE_ID.value},{SQL_CONSTS.ReceiptColumns.USER_ID.value} from {SQL_CONSTS.TablesNames.RECEIPTS.value} where {SQL_CONSTS.ReceiptColumns.MESSAGE_ID.value} in " \
+                  f"(select {SQL_CONSTS.MessagesColumns.MESSAGE_ID.value} from {SQL_CONSTS.TablesNames.MESSAGES.value} where {SQL_CONSTS.MessagesColumns.CONVERSATION_ID.value}=%s and {SQL_CONSTS.MessagesColumns.CREATOR_USER_ID.value}<>%s) and ({SQL_CONSTS.ReceiptColumns.READ_TS}=0 or {SQL_CONSTS.ReceiptColumns.SENT_TS}=0))"
+        data=(timestamp, timestamp, conversation_id, userid)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(update_receipt_cmd,data)
+                try: 
+                    number_lines_updates = int(cursor.rowcount)
+                    return number_lines_updates
+                except:
+                    pass
+                return 0
