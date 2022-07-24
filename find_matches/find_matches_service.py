@@ -14,7 +14,8 @@ from functools import partial
 import pandas as pd
 import boto3
 from multiprocessing.pool import ThreadPool
-
+from dateutil.relativedelta import relativedelta
+from datetime import datetime
 app = Flask(__name__)
 
 
@@ -204,6 +205,8 @@ def get_user_matches(uid):
       current_user_matches = app.config.aurora_client.get_real_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
       t2 = time.time()
       current_user_matches.replace({np.nan: None}, inplace=True)
+      current_user_matches['age'] = current_user_matches[SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value].apply(datetime.fromtimestamp).apply(
+                        partial(relativedelta, datetime.now())).apply(lambda x: x.years)
     if need_fr_data and show_dummy_profiles: #TODO implement real users fr_data
       current_user_matches['fr_data'] = current_user_matches.fr_data.transform(pickle.loads)
       #Let's sort by fr!
