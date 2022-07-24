@@ -72,6 +72,16 @@ def get_real_user_images(user_id):
     return user_images_links
 
 
+def get_location_description(lat,lon):
+    if lat is None or lon is None:
+        return ''
+    try:
+        response = requests.get(url=f'https://services.voilaserver.com/geolocation/description_by_coordinates?lat={lat}&lon={lon}')
+        data = response.json()
+        return data['location_description']
+    except:
+        return ''
+
 @app.route('/user_data/settings/<userid>', methods=['POST'])
 def post_user_settings(userid):
     # TODO: check if userid matches the one in dict, add some security layer
@@ -81,7 +91,7 @@ def post_user_settings(userid):
             SQL_CONSTS.UsersColumns.LONGITUDE.value, 0.0) != 0.0:
         lat = user_data.get(SQL_CONSTS.UsersColumns.LATITUDE.value, 0.0)
         lon = user_data.get(SQL_CONSTS.UsersColumns.LONGITUDE.value, 0.0)
-        location_description = 'To be implemented at AWS' #app.config.geo_service.location_descrpition_by_coordinates(lat=lat,lon=lon,postgres_client=app.config.postgres_client)
+        location_description = get_location_description(lat=lat,lon=lon) #app.config.geo_service.location_descrpition_by_coordinates(lat=lat,lon=lon,postgres_client=app.config.postgres_client)
         user_data[SQL_CONSTS.UsersColumns.LOCATION_DESCRIPTION.value] = location_description
     if user_data.get(SQL_CONSTS.UsersColumns.USER_BIRTHDAY.value, None) is not None and len(
             user_data[SQL_CONSTS.UsersColumns.USER_BIRTHDAY.value]) > 0:

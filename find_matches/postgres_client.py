@@ -39,7 +39,7 @@ class PostgresClient:
         try:
             yield con
         finally:
-            self.pool.putconn(con)
+            self.pool.putconn(con,close=True)
     def _update_table_by_dict(self, table_name, data, primary_key):
         '''
 
@@ -277,9 +277,9 @@ class PostgresClient:
                 return [dict(result) for result in results]
 
 
-    def get_dummy_matches(self,lat=None,lon=None,radium_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
+    def get_dummy_matches(self,lat=None,lon=None,radius_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
         
-        location_based_search = all([x is not None for x in [lat,lon,radium_in_kms]])
+        location_based_search = all([x is not None for x in [lat,lon,radius_in_kms]])
         text_based_search = len(text_search) > 0
         if not (location_based_search or text_based_search): #We potentially have to go over all the huge table,let's see if that is the case and if so sample from it instead of going over the entire table.
             percents_in_db = self._fraction_of_users(gender_index=gender_index, min_age=min_age, max_age=max_age,
@@ -296,7 +296,7 @@ class PostgresClient:
         query_args = [] 
         if location_based_search:
             query += f' and earth_box(ll_to_earth(%s,%s ),%s*1000/1.609) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
-            query_args += [lat,lon,radium_in_kms]
+            query_args += [lat,lon,radius_in_kms]
 
         if min_age is not None:
             query += ' and age>=%s '
