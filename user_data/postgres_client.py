@@ -58,7 +58,6 @@ class PostgresClient:
         try:
             with self.get_connection() as connection:
                 with connection.cursor() as cursor:
-                    #print(cursor.mogrify(insert, data))
                     cursor.execute(insert, data)
     
         except UniqueViolation as _:
@@ -75,7 +74,6 @@ class PostgresClient:
                     else:
                         primary_key_str = f'%({primary_key})s'
                     update += f" where {primary_key}={primary_key_str}"
-                    #print(cursor.mogrify(update, data))
                     cursor.execute(update, data)
 
     def create_users_table(self):
@@ -283,7 +281,7 @@ class PostgresClient:
         :param value_dicts: dict of keys-column names,values - the values to be inserted
         :return:
         '''
-        insert_command = f"insert into {tablename} ({','.join(str(k) for k in value_dicts)}) values ({','.join(['%s' for _ in range(len(value_dicts))])})"
+        insert_command = f"insert into {tablename} ({','.join(str(k) for k in value_dicts)}) values ({','.join([' %s ' for _ in range(len(value_dicts))])})"
         if ignore_conflict:
             insert_command += ' ON CONFLICT DO NOTHING'
         values = tuple(value_dicts[k] for k in value_dicts)
@@ -325,7 +323,6 @@ class PostgresClient:
                 sql_cmd = f'select * from {SQL_CONSTS.TablesNames.USERS.value} where {SQL_CONSTS.UsersColumns.FIREBASE_UID.value} '\
                           f'in (select {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value} from {SQL_CONSTS.TablesNames.PARTICIPANTS.value} where {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value}=%s)'
                 data = (conversation_id,)
-                print(f'at get_users_by_conversation i am gonna execute {cursor.mogrify(sql_cmd,data)}')
                 cursor.execute(sql_cmd,data)
                 results = cursor.fetchall()
                 results = [dict(result) for result in results]
@@ -363,10 +360,10 @@ class PostgresClient:
                 cursor.execute(post_message_cmd, post_message_data)
                 for user in users:
                     iterated_user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
-                    print(iterated_user_id)
                     receipt_cmd, receipt_data = self.create_receipt_command(user_id=iterated_user_id,
                                                                             message_id=message_id,initial_timestamp=0 if iterated_user_id!=creator_id else created_date)  # TODO: create receipts for all users in conversation
                     cursor.execute(receipt_cmd,receipt_data)
+            connection.commit()
             
         
             return {'message_details':value_dicts,'users_in_conversation':users}
@@ -375,6 +372,8 @@ class PostgresClient:
         sql_cmd = f"select * from {SQL_CONSTS.TablesNames.MESSAGES.value} where {SQL_CONSTS.MessagesColumns.CHANGE_DATE.value} > %s and {SQL_CONSTS.MessagesColumns.CONVERSATION_ID.value} in (select {SQL_CONSTS.ParticipantsColumns.CONVERSATION_ID.value} from {SQL_CONSTS.TablesNames.PARTICIPANTS} where {SQL_CONSTS.ParticipantsColumns.FIREBASE_UID.value}=%s);"
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
+                print(f'DDDDOOOOOORRRRR AT GET USER MESSAGES, I AM GOING TO RUN THE COMMAND:')
+                print(f'{cursor.mogrify(sql_cmd,(float(timestamp),userid))}')
                 cursor.execute(sql_cmd,(float(timestamp),userid))
                 results = cursor.fetchall()
                 results = [dict(result) for result in results]

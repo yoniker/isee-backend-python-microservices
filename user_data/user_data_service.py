@@ -129,7 +129,6 @@ def upload_custom_face_image(username):
 @app.route('/user_data/analyze_custom_image/<user_id>/<image_name>')
 def analyze_custom_face_image(user_id,image_name):
     s3_path = custom_image_path(userid=user_id,imagename=image_name)
-    print(f's3_path is {s3_path}')
     t1 = time.time()
     address_correctly_resolved = False
     host = resolve_srv_addr("face-detection-service.microservices.local")
@@ -149,7 +148,6 @@ def analyze_custom_face_image(user_id,image_name):
     os.makedirs(local_location_save_images,exist_ok=True)
     
     for i, (display_image_data,fr_data) in enumerate(zip(detections_data['display_images'],detections_data['fr_data'])):
-        print(f'at face number {i}')
         display_image = jsoned_image_to_image(display_image_data)
         display_image_filename = os.path.join(local_location_save_images,f'{i}.jpg')
         display_image.save(display_image_filename)
@@ -172,13 +170,10 @@ def get_custom_face_image_url(user_id,analysis_directory_name,filename):
     #and produce s3 links
     s3_client = boto3.client('s3')
     object_key = f'{user_id}/custom_image/{analysis_directory_name}/{filename}'
-    print(f'object key is {object_key}')
     presigned_url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': REAL_BUCKET, 'Key': object_key})
-    print(f'redirect link is {presigned_url}')
     return redirect(presigned_url, code=302)
 @app.route('/user_data/healthcheck')
 def say_healthy():
-    print('dor')
     return jsonify({'status':'user data service is up and running'})
 
 @app.route('/user_data/celeb_image_links/<celebname>')
@@ -264,7 +259,6 @@ def get_profile_image(user_id):
         return redirect_to_aws_real(user_id='app_assets',filename= 'anonymous_user.jpg')
     profile_image_url = user_images_links[0]
     username,filename = profile_image_url.split('/')
-    print(f'profile image username is {username} filename is {filename}')
     return redirect_to_aws_real(aws_key=profile_image_url)
 
 @app.route('/user_data/profile_images/swap/<user_id>',methods=['POST'])
@@ -322,7 +316,6 @@ def update_match(user_id1,user_id2,match_new_status):
         data = {'push_notification_type': 'match_info'}
         send_notification = False
     for user in [user1,user2]:
-        print(f'sending notification to {user}')
         if user==user1:
             other_user_id = user2[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
             other_user_name = user2[SQL_CONSTS.UsersColumns.NAME.value]
@@ -332,7 +325,6 @@ def update_match(user_id1,user_id2,match_new_status):
         data['user_id'] = other_user_id
         fcm_token = user[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
         user_id = user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]
-        print(f'sending message to user {user_id}')
         send_message(user_id=user_id,fcm_token=fcm_token,
         notification_title="You have a new match!!" if send_notification else None,
         notification_body=f"You got matched with {other_user_name}!" if send_notification else None,
@@ -401,13 +393,11 @@ def post_message(conversation_id, creator_id, content,sender_epoch_time):
    :return:
    '''
    message_users_data = app.config.aurora_client.post_message(conversation_id, creator_id, content,sender_epoch_time = sender_epoch_time,created_date=time.time(),status='created')
-   print(f'message users data is {message_users_data}')
    users_in_chat_details = message_users_data['users_in_conversation']
    message_details = dict(message_users_data['message_details'])
    message_details['push_notification_type'] = 'new_message'
    sender_details = app.config.aurora_client.get_user_by_id(creator_id)
    for user_to_notify in users_in_chat_details:
-      print(f'Sending to user {user_to_notify[SQL_CONSTS.UsersColumns.NAME.value]}...')
       if user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value] != sender_details[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]:
          #It's a different participant than the notified user, so send with sender details
          data = dict(message_details)
@@ -436,7 +426,6 @@ def start_conversation(user_id):
     # TODO and anyways return the conversation id.
     # TODO make sure the user has credentials
     conversation_id = app.config.aurora_client.create_conversation(user_id, other_user_id)
-    print(f'post message going to be called with {conversation_id} {user_id} {message_content} {sender_epoch_time}')
     post_message(conversation_id=conversation_id, creator_id=user_id, content=message_content,
                        sender_epoch_time=sender_epoch_time)
     return jsonify({'result': 'success'})
@@ -448,6 +437,7 @@ def get_all_messages(userid, timestamp):
     relevant_messages = app.config.aurora_client.get_all_user_messages_by_timeline(userid=userid, timestamp=timestamp)
     relevant_messages_dict = {relevant_message[SQL_CONSTS.MessagesColumns.MESSAGE_ID.value]: relevant_message for
                                 relevant_message in relevant_messages}
+    print(f'relevant messages at SQL are {relevant_messages}')
     relevant_receipts = app.config.aurora_client.get_all_user_receipts_by_timeline(userid=userid, timestamp=timestamp)
     for relevant_receipt in relevant_receipts:
         message_id = relevant_receipt[SQL_CONSTS.ReceiptColumns.MESSAGE_ID]
@@ -460,6 +450,7 @@ def get_all_messages(userid, timestamp):
         relevant_messages_dict[message_id]['receipts'].append(relevant_receipt)
     relevant_matches_changes = app.config.aurora_client.get_matches_by_timeline(userid=userid,timestamp=timestamp)
     data = {'messages_data':list(relevant_messages_dict.values()),'matches_data':relevant_matches_changes}
+    print(f'SYNC Going to send {data}')
     return jsonify(data)
 
 @app.route('/user_data/mark_conversation_read/<userid>/<conversation_id>', methods=['GET'])
@@ -469,7 +460,6 @@ def mark_conversation_read(userid, conversation_id):
         users_to_notify = app.config.aurora_client.get_users_by_conversation(conversation_id)
         data = {'push_notification_type': 'new_read_receipt'}  # TODO add more data here if and when needed...
         for user_to_notify in users_to_notify:
-            print(f'Sending to user {user_to_notify[SQL_CONSTS.UsersColumns.NAME.value]}...')
             send_message(
                 user_id=user_to_notify[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],
                 fcm_token=user_to_notify[SQL_CONSTS.UsersColumns.FCM_TOKEN.value],
