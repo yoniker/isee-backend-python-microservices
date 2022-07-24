@@ -8,8 +8,8 @@ import time
 import pandas as pd
 import pandas.io.sql as sqlio
 import pickle
-
-
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
 
 
 class PostgresClient:
@@ -134,6 +134,7 @@ class PostgresClient:
                                      f'{SQL_CONSTS.UsersColumns.HOBBIES} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.PETS} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.TEXT_SEARCH} varchar,'
+                                     f'{SQL_CONSTS.UsersColumns.GENDER_INDEX} int,'
                                
                                
         
@@ -175,6 +176,25 @@ class PostgresClient:
                 results = [dict(result) for result in results]
                 return results
     
+
+    def get_users_profile_images(self,users_ids):
+        '''
+        original query:
+        select * from images where user_id = 'kRlw3NNKk5aavKfYEupXroBcfYp1' and type = 'in_profile' order by priority asc;
+        
+        '''
+        if len(users_ids)==0:
+            return []
+        users_ids = tuple(str(user_id) for user_id in users_ids)
+        sql_cmd = f"select * from {SQL_CONSTS.TablesNames.IMAGES.value} where {SQL_CONSTS.ImageColumns.USER_ID} in %s "\
+        f"and {SQL_CONSTS.ImageColumns.TYPE.value}=%s order by {SQL_CONSTS.ImageColumns.PRIORITY} asc"
+        data = (users_ids,SQL_CONSTS.ImagesConsts.IN_PROFILE_TYPE.value,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd, data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
     
     def swap_images_priorities(self,image1_key,image2_key):
         """
@@ -298,6 +318,45 @@ class PostgresClient:
             query = f'with selected_users as ({query}) ' \
                              f'select * from (selected_users  join dummy_users_fr_data on selected_users.pof_id=dummy_users_fr_data.pof_id)'
         print(f'got here,query is {query}')
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                full_query = cursor.mogrify(query,query_args)
+                print(full_query)
+                data = sqlio.read_sql_query(full_query, connection)
+                return data
+
+    def get_real_matches(self,lat=None,lon=None,radium_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
+        
+        location_based_search = all([x is not None for x in [lat,lon,radium_in_kms]])
+
+        #The idea is to change the query string, and query args in accordance with the parameters required
+        query = f'SELECT * FROM {SQL_CONSTS.TablesNames.USERS.value} WHERE true '
+        query_args = [] 
+        if location_based_search:
+            query += f' and earth_box(ll_to_earth(%s,%s ),%s*1000/1.609) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
+            query_args += [lat,lon,radium_in_kms]
+
+        if min_age is not None:
+            query += f' and {SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value}<=%s '
+            query_args+= [(datetime.now() - relativedelta(years=int(min_age))).timestamp()]
+        if max_age is not None:
+            query += f' and {SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value}>=%s '
+            query_args+= [(datetime.now() - relativedelta(years=int(max_age))).timestamp()]
+        if gender_index is not None:
+            query += f' and {SQL_CONSTS.UsersColumns.GENDER_INDEX.value}=%s'
+            query_args += [gender_index]
+        if text_search is not None and len(text_search)>0:
+            query +=  f" and lower({SQL_CONSTS.UsersColumns.USER_DESCRIPTION.value}) like %s "
+            query_args += ['%'+text_search.lower()+'%']
+        if uid is not None:
+            query += f' and not cast ({SQL_CONSTS.UsersColumns.FIREBASE_UID.value} as varchar)  in (select {SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value} from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s) '
+            query_args += [uid]
+            query += f' and {SQL_CONSTS.UsersColumns.FIREBASE_UID.value}<>%s' #Not match with oneself
+            query_args += [uid]
+        query += f' order by random() limit {max_num_users}'
+        if need_fr_data and False: #TODO implement
+            query = f'with selected_users as ({query}) ' \
+                             f'select * from (selected_users  join dummy_users_fr_data on selected_users.pof_id=dummy_users_fr_data.pof_id)'
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
                 full_query = cursor.mogrify(query,query_args)

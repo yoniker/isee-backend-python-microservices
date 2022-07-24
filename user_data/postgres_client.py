@@ -458,3 +458,30 @@ class PostgresClient:
                 except:
                     pass
                 return 0
+
+    def num_users_by_location(self,lat,lon,gender=None,distance_in_km=60):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                statement = f'select count(*) from users where '
+                data = []
+                if gender is not None:
+                    statement += ' gender = %s and '
+                    data.append(gender)
+                statement += f'earth_distance(ll_to_earth(latitude, longitude), ll_to_earth(%s, %s)) < %s*1000'
+                data += [lat,lon,distance_in_km]
+                cursor.execute(statement
+                               ,tuple(data))
+                
+                result = cursor.fetchall()
+                return result[0]['count']
+    
+    def register_user(self,user_dict):
+        return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_dict,
+                                          primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+
+    def delete_user(self,user_id):
+        user_dict={SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value : SQL_CONSTS.REGISTRATION_STATUS_TYPES.DELETED.value,
+                   SQL_CONSTS.UsersColumns.FIREBASE_UID.value:user_id,
+                   SQL_CONSTS.UsersColumns.UPDATE_DATE:time.time()}
+        return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_dict,
+                                          primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)

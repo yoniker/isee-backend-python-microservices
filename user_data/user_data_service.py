@@ -25,6 +25,10 @@ import numpy as np
 from srv_resolve import resolve_srv_addr
 from dateutil.relativedelta import relativedelta
 from functools import partial
+from firebase_admin import auth
+
+
+FIREBASE_PROJECT_ID = 'swiper-db2c5'
 
 def calculate_birthday_timestamp(birthday_text):
     if birthday_text is None or len(birthday_text) == 0:
@@ -466,6 +470,98 @@ def mark_conversation_read(userid, conversation_id):
                 data=data)
     return jsonify({'result': 'success'})
 
+def handle_token(decoded_token,ignore_if_registered:bool):
+    uid = decoded_token['uid']  # TODO something with the user's information
+    if decoded_token['aud'] != FIREBASE_PROJECT_ID:
+        print('wrong aud(audience=project id)')
+        return jsonify({'status': 'bad project id'})
+    
+    data_from_token = {}
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_UID.value] = uid
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_NAME.value] = decoded_token.get('name', '')
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_EMAIL.value] = decoded_token.get('email', '')
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_IMAGE_URL.value] = decoded_token.get('picture', '')
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_SIGNIN_PROVIDER.value] = decoded_token.get('firebase', {}).get(
+        'sign_in_provider', '')
+    data_from_token[SQL_CONSTS.UsersColumns.APPLE_ID.value] = decoded_token.get('firebase',{}).get('identities',{}).get('apple.com',[''])[0]
+    data_from_token[SQL_CONSTS.UsersColumns.FACEBOOK_ID.value] = \
+        decoded_token.get('firebase', {}).get('identities', {}).get('facebook.com', [''])[0]
+    data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_PHONE_NUMBER.value] = decoded_token.get('phone_number', '')
+    if not ignore_if_registered:
+        # Let's see if the user is already registered, and if so let's give the phone an indication
+        current_user_data = app.config.aurora_client.get_user_by_id(
+            user_id=data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_UID.value])
+        if len(current_user_data) > 0:
+            if current_user_data.get(SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
+                                     None) == SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED.value:
+                return jsonify({
+                    ServerConsts.RegistrationResponses.STATUS.value: ServerConsts.RegistrationResponses.ALREADY_REGISTERED.value,
+                    ServerConsts.RegistrationResponses.USER_DATA.value: current_user_data
+                })
+    data_from_token[SQL_CONSTS.UsersColumns.UPDATE_DATE.value] = time.time()
+    app.config.aurora_client.register_user(user_dict=data_from_token)
+    return jsonify({
+        ServerConsts.RegistrationResponses.STATUS.value: ServerConsts.RegistrationResponses.NEW_REGISTER.value
+        , ServerConsts.RegistrationResponses.USER_DATA.value: {SQL_CONSTS.UsersColumns.FIREBASE_UID.value: uid}})
+
+
+@app.route('/user_data/register_firebase_uid', methods=['GET'])
+def register_user():
+    firebase_id_token = request.headers.get("firebase_id_token")
+    decoded_token = auth.verify_id_token(firebase_id_token)
+    return handle_token(decoded_token,ignore_if_registered=False)
+    
+    
+
+def is_test_user(user_id):
+    return True #TODO implement
+
+
+@app.route('/user_data/verify_token', methods=['GET'])
+def verify_token():
+    '''
+    Verify the token, extract all of the login information relevant to the user (phone number, facebook id, gmail etc)
+    :return:
+    status success if the token is alright
+    otherwise status with error message
+    
+    TODO return Voila JWT through this path
+    '''
+    firebase_id_token = request.headers.get("firebase_id_token")
+    decoded_token = auth.verify_id_token(firebase_id_token)
+    return handle_token(decoded_token,ignore_if_registered=True)
+
+@app.route('/user_data/users_in_location/<user_id>', methods=['GET'])
+def count_users_current_location(user_id):
+    MINIMUM_THRESHOLD = 2000 if not is_test_user(user_id) else 0
+    #TODO auth
+    user_settings = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value, None)
+    lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value, None)
+    if any([x is None for x in [lon, lat]]):
+        return jsonify({ServerConsts.LocationCountResponses.STATUS.value:ServerConsts.LocationCountResponses.UNKNOWN_USER_LOCATION.value,
+                        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+                        })
+    count = app.config.aurora_client.num_users_by_location(lat,lon)
+    if count>=MINIMUM_THRESHOLD:
+        return jsonify({
+           ServerConsts.LocationCountResponses.STATUS.value: ServerConsts.LocationCountResponses.ENOUGH_USERS.value,
+            ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+        })
+    #If here it's only when there are not enough users, so therefore:
+    return jsonify({
+        ServerConsts.LocationCountResponses.STATUS.value: ServerConsts.LocationCountResponses.NOT_ENOUGH_USERS.value,
+        ServerConsts.LocationCountResponses.CURRENT_NUM.value : count,
+        ServerConsts.LocationCountResponses.REQUIRED_NUM.value : MINIMUM_THRESHOLD,
+        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+        
+    })
+    
+@app.route('/user_data/delete_account/<user_id>', methods=['GET'])
+def delete_account(user_id):
+    app.config.aurora_client.delete_user(user_id=user_id)
+    return jsonify({'status':'success'})
+
 if __name__ == '__main__':
    app.run(threaded=True,port=20003,host="0.0.0.0",debug=False)
 
@@ -526,4 +622,9 @@ https://s3.amazonaws.com/com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/cus
 
 aws s3 sync s3://com.voiladating.dummy s3://com.voiladating.dummy2 --source-region us-east-2 --region us-east-1
 
+
+trytry = 'insert into messages (message_id_,content,conversation_id,user_id,added_date,changed_date,status) values (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING'
+print(f'{cursor.mogrify(trytry, post_message_data)}')
+
+cursor.mogrify(trytry, post_message_data).decode('utf-8').replace('/','')
 '''

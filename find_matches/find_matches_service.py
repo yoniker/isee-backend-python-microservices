@@ -76,10 +76,16 @@ def get_dummy_users_images(users):
    print(f'It took {time.time()-start_time} to get users images')
    return users
 
-def get_real_user_images(user_id):
-    user_images_details = app.config.aurora_client.get_user_profile_images(user_id)
-    user_images_links = ['user_data/profile_images/real/' + x['filename'] for x in user_images_details]
-    return user_images_links
+def get_real_users_images(users):
+    users_ids = [str(user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value]) for user in users]
+    images_data = app.config.aurora_client.get_users_profile_images(users_ids)
+    for user in users:
+      user_id = str(user[SQL_CONSTS.UsersColumns.FIREBASE_UID.value])
+      user_images = [image_info for image_info in images_data if image_info[SQL_CONSTS.ImageColumns.USER_ID.value]==user_id]
+      user_images.sort(key=lambda x:x[SQL_CONSTS.ImageColumns.PRIORITY.value])
+      user_images = [f'user_data/profile_images/real/{user_image[SQL_CONSTS.ImageColumns.FILENAME.value]}' for user_image in user_images]
+      user['images'] = user_images
+    return users
 
 #TODO make the following env variables
 aurora_reader_host = 'voila-aurora-cluster.cluster-ro-ck82h9f9wsbf.us-east-1.rds.amazonaws.com'
@@ -183,17 +189,22 @@ def get_user_matches(uid):
 
     limit = 2000 if need_fr_data else 20 #TODO move to server consts
     t1 = time.time()
-    current_user_matches = app.config.aurora_client.get_dummy_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
-    t2 = time.time()
-    current_user_matches[SQL_CONSTS.UsersColumns.HEIGHT_IN_CM.value]= current_user_matches['height'].apply(pof_height_to_height_in_cm)
-    current_user_matches['user_type'] = 'dummy'
-    current_user_matches[SQL_CONSTS.UsersColumns.LOCATION_DESCRIPTION.value]=current_user_matches['city'].fillna('?')+','+current_user_matches['state_id'].fillna('?')
-    current_user_matches.rename(columns=DUMMY_COLUMNS_TO_REAL_NAMES,inplace=True)
-    current_user_matches.replace({np.nan: None}, inplace=True)
-    current_user_matches.pets = current_user_matches.pets.apply(lambda x: json.dumps([x]) if x is not None and len(x)>0 else json.dumps(["No pets"])) #since pets expects a list of strings
-    
-    
-    if need_fr_data:
+    show_dummy_profiles = user_settings[SQL_CONSTS.UsersColumns.SHOW_DUMMY_PROFILES.value]=='true'
+    if show_dummy_profiles:
+      current_user_matches = app.config.aurora_client.get_dummy_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+      t2 = time.time()
+      current_user_matches[SQL_CONSTS.UsersColumns.HEIGHT_IN_CM.value]= current_user_matches['height'].apply(pof_height_to_height_in_cm)
+      current_user_matches['user_type'] = 'dummy'
+      current_user_matches[SQL_CONSTS.UsersColumns.LOCATION_DESCRIPTION.value]=current_user_matches['city'].fillna('?')+','+current_user_matches['state_id'].fillna('?')
+      current_user_matches.rename(columns=DUMMY_COLUMNS_TO_REAL_NAMES,inplace=True)
+      current_user_matches.replace({np.nan: None}, inplace=True)
+      current_user_matches.pets = current_user_matches.pets.apply(lambda x: json.dumps([x]) if x is not None and len(x)>0 else json.dumps(["No pets"])) #since pets expects a list of strings
+    else: #real users
+      print('Showing real users')
+      current_user_matches = app.config.aurora_client.get_real_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+      t2 = time.time()
+      current_user_matches.replace({np.nan: None}, inplace=True)
+    if need_fr_data and show_dummy_profiles: #TODO implement real users fr_data
       current_user_matches['fr_data'] = current_user_matches.fr_data.transform(pickle.loads)
       #Let's sort by fr!
       search_embedding = None
@@ -216,8 +227,10 @@ def get_user_matches(uid):
         pass
         #current_user_matches = get_dummy_users_images(current_user_matches)
     current_user_matches = current_user_matches.to_dict(orient='records')
-    current_user_matches = get_dummy_users_images(current_user_matches)
-
+    if show_dummy_profiles:
+      current_user_matches = get_dummy_users_images(current_user_matches)
+    else:
+      current_user_matches = get_real_users_images(current_user_matches)
     t3 = time.time()
     status = ServerConsts.MatchesStatus.FOUND.value if len(current_user_matches)>0 else ServerConsts.MatchesStatus.NOT_FOUND.value #TODO check for other statuses.
     return jsonify({'time querying db':t2-t1,'time making jsonifyable':t3-t2,'overall time':t3-t1,ServerConsts.MatchesDataNames.MATCHES.value:current_user_matches,
@@ -263,7 +276,7 @@ docker run -d  -it -p20002:20002/tcp try
 
 #PGPASSWORD=dordordor nohup psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < dummy_users_images.dump &
 
-#curl "localhost:20002/matches/86BHzRMxENO7XN0goZYKaZuhSdf2"
+#curl "localhost:20002/matches/5EX44AtZ5cXxW1O12G3tByRcC012"
 
 #services.voilaserver.com/matches/5EX44AtZ5cXxW1O12G3tByRcC012
 

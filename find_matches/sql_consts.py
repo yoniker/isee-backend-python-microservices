@@ -15,6 +15,10 @@ class SQL_CONSTS:
         DECISIONS = 'decisions'
         CELEBS_FR_DATA = 'celebs_fr_data'
         CELEBS_S3_IMAGES = 'celebs_s3_images'
+        MATCHES = 'matches'
+        CONVERSATIONS = 'conversations'
+        MESSAGES = 'messages'
+        RECEIPTS = 'receipts'
         
 
 
@@ -105,6 +109,7 @@ class SQL_CONSTS:
         PETS = 'pets'
         TEXT_SEARCH = 'text_search'
         REGISTRATION_STATUS = 'registration_status'
+        GENDER_INDEX  = 'gender_index'
         
     class REGISTRATION_STATUS_TYPES(str,Enum):
         REGISTERED = 'registered'

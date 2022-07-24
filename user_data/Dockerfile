@@ -2,6 +2,7 @@ FROM python:3.9.7
 RUN pip install psycopg2 flask requests Pillow
 RUN pip install pandas
 RUN pip install geopy boto3 ipdb dnspython
+RUN pip install firebase_admin
 WORKDIR /home/user_data_service
 COPY user_data_service.py /home/user_data_service
 COPY sql_consts.py /home/user_data_service
