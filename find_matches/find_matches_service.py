@@ -5,7 +5,6 @@ import time
 import random
 from postgres_client import PostgresClient
 import numpy as np
-import pickle
 import json
 from sql_consts import SQL_CONSTS
 from server_consts import ServerConsts
@@ -20,6 +19,10 @@ import requests
 import socket
 app = Flask(__name__)
 RUNNING_IN_HAIFA = (socket.gethostname() == 'Papush')
+if not RUNNING_IN_HAIFA:
+    import pickle
+else:
+    import pickle5 as pickle
 
 FACE_RECOGNITION_THRESHOLDS = {'best':1.2,'good':1.24,'okish':1.262,'weak':1.278,'meh':1.3} #Thresholds I chose manually by going over some celebs data.
 
