@@ -16,8 +16,10 @@ import boto3
 from multiprocessing.pool import ThreadPool
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
+import requests
+import socket
 app = Flask(__name__)
-RUNNING_ON_HAIFA = True
+RUNNING_IN_HAIFA = (socket.gethostname() == 'Papush')
 
 FACE_RECOGNITION_THRESHOLDS = {'best':1.2,'good':1.24,'okish':1.262,'weak':1.278,'meh':1.3} #Thresholds I chose manually by going over some celebs data.
 
@@ -94,8 +96,8 @@ aurora_username = 'yoni'
 aurora_password = 'dordordor'
 
 
-app.config.haifa_client = PostgresClient(database = 'dummy_users',user='yoni',password='dor',host='dordating.com')
-if RUNNING_ON_HAIFA:
+if RUNNING_IN_HAIFA: app.config.haifa_client = PostgresClient(database ='dummy_users', user='yoni', password='dor', host='dordating.com')
+if RUNNING_IN_HAIFA:
   app.config.aurora_client = app.config.haifa_client
 else:
   app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
@@ -177,7 +179,11 @@ def get_user_matches(uid,user_settings=None):
     if user_settings is None:
         user_settings = app.config.aurora_client.user_info(uid=uid)
         if len(user_settings)==0:
-          return jsonify({'status':f'no user with uid {uid} was found'}),404
+          return jsonify({'status':f'no user with uid {uid} was found'}), 404
+    show_dummy_profiles = user_settings[SQL_CONSTS.UsersColumns.SHOW_DUMMY_PROFILES.value] == 'true'
+    if not RUNNING_IN_HAIFA and show_dummy_profiles:
+        response = requests.post(url='http://dordating.com:20002/haifa_path_for_dummy_users',json=user_settings)
+        return jsonify(response.json())
     lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value)
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value)
     search_distance_enabled = user_settings.get(SQL_CONSTS.UsersColumns.SEARCH_DISTANCE_ENABLED.value,SQL_CONSTS.UserRadiusEnabled.FALSE.value)
@@ -202,7 +208,7 @@ def get_user_matches(uid,user_settings=None):
 
     limit = 2000 if need_fr_data else 20 #TODO move to server consts
     t1 = time.time()
-    show_dummy_profiles = user_settings[SQL_CONSTS.UsersColumns.SHOW_DUMMY_PROFILES.value]=='true'
+
     if show_dummy_profiles:
       current_user_matches = app.config.haifa_client.get_dummy_matches(lat=lat,lon=lon,radius_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
       #pg_dump -t users_fr_data2 pof > users_fr_data2.sql
