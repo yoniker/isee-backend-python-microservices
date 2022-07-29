@@ -161,11 +161,19 @@ def perform_query_aws():
     t3 = time.time()
     return jsonify({'time querying db':t2-t1,'time making jsonifyable':t3-t2,'overall time':t3-t1})
 
+
+@app.route('/haifa_path_for_dummy_users',methods=['POST'])
+def get_dummy_user_matches_from_haifa():
+    user_settings = request.get_json(force = True)
+    return get_user_matches(uid=user_settings[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],user_settings=user_settings)
+
+
 @app.route('/matches/<uid>')
-def get_user_matches(uid):
-    user_settings = app.config.aurora_client.user_info(uid=uid)
-    if len(user_settings)==0:
-      return jsonify({'status':f'no user with uid {uid} was found'}),404
+def get_user_matches(uid,user_settings=None):
+    if user_settings is None:
+        user_settings = app.config.aurora_client.user_info(uid=uid)
+        if len(user_settings)==0:
+          return jsonify({'status':f'no user with uid {uid} was found'}),404
     lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value)
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value)
     search_distance_enabled = user_settings.get(SQL_CONSTS.UsersColumns.SEARCH_DISTANCE_ENABLED.value,SQL_CONSTS.UserRadiusEnabled.FALSE.value)
