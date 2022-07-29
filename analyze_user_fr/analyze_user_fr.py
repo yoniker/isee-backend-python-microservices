@@ -1,3 +1,4 @@
+import datetime
 import os
 from enum import Enum
 from flask import Flask,jsonify,request
@@ -9,6 +10,7 @@ from image_utils import jsoned_image_to_image
 import pickle
 import numpy as np
 from group_faces import embeddings_to_groups,EmbeddingsData,get_mid_embedding
+from datetime import datetime
 
 class EnvConsts(str, Enum):
     POSTGRES_USERNAME = 'POSTGRES_USERNAME'
@@ -71,7 +73,10 @@ def analyze_user(user_id):
     with open(fr_user_filename, 'wb') as handle:
         pickle.dump(all_fr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
     upload_file_to_s3(file_name=fr_user_filename,bucket=REAL_BUCKET,object_name=user_fr_data_s3_key)
-    #TODO: update the images table info regrading the analysis timestamp
+    app.config.postgres_client.update_images_analyzed(user_id=user_id,
+                                                      filenames=[x[SQL_CONSTS.ImageColumns.FILENAME.value] for x in user_images_to_analyze],
+                                                      timestamp=datetime.now().timestamp()
+                                                      )
     #At this point we have the info on all analyzed images. Let's now analyze only the images which are 'in_profile'.
     in_profile_images_data = app.config.postgres_client.get_user_profile_images(user_id=user_id)
     in_profile_images_filenames = [in_profile_image['filename'] for in_profile_image in in_profile_images_data]
@@ -115,7 +120,7 @@ def analyze_user(user_id):
 
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20006,host="0.0.0.0",debug=False)
+   app.run(threaded=True, port=20006,host="0.0.0.0",debug=False)
 
 
 '''

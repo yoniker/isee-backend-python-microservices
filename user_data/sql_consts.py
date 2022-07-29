@@ -19,8 +19,7 @@ class SQL_CONSTS:
         CONVERSATIONS = 'conversations'
         MESSAGES = 'messages'
         RECEIPTS = 'receipts'
-        
-
+        USERS_FR_DATA = 'users_fr_data'
 
     class CELEBS_FR_DataColumn(str,Enum):
         CELEBNAME = 'celebname'
@@ -109,18 +108,20 @@ class SQL_CONSTS:
         PETS = 'pets'
         TEXT_SEARCH = 'text_search'
         REGISTRATION_STATUS = 'registration_status'
+        HAS_FR_DATA = 'has_fr_data'
         
-    class REGISTRATION_STATUS_TYPES(str,Enum):
+    class REGISTRATION_STATUS_TYPES(str, Enum):
         REGISTERED = 'registered'
         DELETED = 'deleted'
         
-    class ADDED_USER_COLUMNS(str,Enum):
+    class ADDED_USER_COLUMNS(str, Enum):
         AGE = 'age'
         IMAGES = 'images'
         HOTNESS = 'hotness'
         COMPATABILITY = 'compatibility'
         LOCATION_DISTANCE = 'location_distance'
-    class DecisionsColumns(str,Enum):
+
+    class DecisionsColumns(str, Enum):
         DECIDER_ID = 'decider_id'
         DECIDEE_ID = 'decidee_id'
         DECISION_TIMESTAMP = 'timestamp'
@@ -168,7 +169,7 @@ class SQL_CONSTS:
         TIMESTAMP_CREATED = 'timestamp_created'
         PRIMARY_KEY = f'({ID_USER1},{ID_USER2})'
     
-    class ImageColumns(str,Enum):
+    class ImageColumns(str, Enum):
         USER_ID = 'user_id'
         BUCKET_NAME = 'bucket_name'
         MORE_INFO = 'more_info'
@@ -176,7 +177,12 @@ class SQL_CONSTS:
         TYPE = 'type'
         IS_PROFILE = 'is_profile'
         FILENAME = 'filename'
+        ANALYZED_IMAGE_TS = 'analyzed_image_timestamp'
         PRIMARY_KEY = f'({USER_ID},{FILENAME})'
+
+    class UsersFrDataColumns(str, Enum):
+        USER_ID = 'user_id'
+        FR_DATA = 'fr_data'
     
     class MatchConsts(str, Enum):
         ACTIVE_MATCH = 'active'
@@ -185,6 +191,7 @@ class SQL_CONSTS:
     class ImagesConsts(str, Enum):
         IN_PROFILE_TYPE = 'in_profile'
         DELETED = 'deleted'
+
     class FilterTypes(str, Enum):
         CELEB_IMAGE = 'CELEB_IMAGE'
         CUSTOM_IMAGE ='CUSTOM_IMAGE'
@@ -192,14 +199,20 @@ class SQL_CONSTS:
         TEXT_SEARCH = 'TEXT_SEARCH'
         NONE = 'NONE'
 
-    class UsersPreferredGender(str,Enum):
+    class UsersPreferredGender(str, Enum):
         MEN = 'Men'
         WOMEN = 'Women'
         EVERYONE = 'Everyone'
-    class DummyUsersGender(str,Enum):
+
+    class DummyUsersGender(str, Enum):
         MALE = 'Male'
         FEMALE = 'Female'
-    class UserRadiusEnabled(str,Enum):
+
+    class UserRadiusEnabled(str, Enum):
+        TRUE = 'true'
+        FALSE = 'false'
+
+    class UserHasFr(str, Enum):
         TRUE = 'true'
         FALSE = 'false'
         

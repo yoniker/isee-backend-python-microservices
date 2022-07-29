@@ -60,7 +60,7 @@ class PostgresClient:
                 with connection.cursor() as cursor:
                     cursor.execute(insert, data)
     
-        except UniqueViolation as _:
+        except (psycopg2.errors.NotNullViolation, UniqueViolation) as _:
             with self.get_connection() as connection:
                 with connection.cursor() as cursor:
                     update = f'update {table_name} set '
@@ -131,12 +131,7 @@ class PostgresClient:
                                      f'{SQL_CONSTS.UsersColumns.HOBBIES} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.PETS} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.TEXT_SEARCH} varchar,'
-                               
-                               
-        
-        
-        
-        
+                                     f'{SQL_CONSTS.UsersColumns.HAS_FR_DATA.value} varchar,'
                                      f'primary key ({SQL_CONSTS.UsersColumns.FIREBASE_UID}) '
                                      f');')
 
@@ -485,3 +480,34 @@ class PostgresClient:
                    SQL_CONSTS.UsersColumns.UPDATE_DATE:time.time()}
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_dict,
                                           primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+    def create_users_fr_table(self):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f'Create Table public.{SQL_CONSTS.TablesNames.USERS_FR_DATA.value} ('
+                               f'{SQL_CONSTS.UsersFrDataColumns.USER_ID.value} varchar, '
+                               f'{SQL_CONSTS.UsersFrDataColumns.FR_DATA.value} bytea, '
+                               f'primary key ({SQL_CONSTS.UsersFrDataColumns.USER_ID.value}) '
+                               f');')
+
+    def get_unanalyzed_images_by_uid(self,user_id):
+        sql_query = f'SELECT * from {SQL_CONSTS.TablesNames.IMAGES.value} WHERE '\
+                    f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_IMAGE_TS.value} is null'
+        data = (user_id,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_query, data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
+    def update_users_fr_data(self,users_fr_data):
+        return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS_FR_DATA.value, data=users_fr_data,
+                                          primary_key=SQL_CONSTS.UsersFrDataColumns.USER_ID.value)
+
+    def update_images_analyzed(self, user_id, filenames, timestamp):
+        sql_query = f'UPDATE {SQL_CONSTS.TablesNames.IMAGES.value} SET {SQL_CONSTS.ImageColumns.ANALYZED_IMAGE_TS.value}=%s ' \
+                    f'WHERE {SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.FILENAME.value} in %s'
+        data = (timestamp, user_id, tuple(filenames))
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_query, data)

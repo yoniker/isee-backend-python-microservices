@@ -60,7 +60,7 @@ class PostgresClient:
                 with connection.cursor() as cursor:
                     cursor.execute(insert, data)
     
-        except (psycopg2.errors.NotNullViolation,UniqueViolation) as _:
+        except (psycopg2.errors.NotNullViolation, UniqueViolation) as _:
             with self.get_connection() as connection:
                 with connection.cursor() as cursor:
                     update = f'update {table_name} set '
@@ -132,13 +132,6 @@ class PostgresClient:
                                      f'{SQL_CONSTS.UsersColumns.PETS} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.TEXT_SEARCH} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.HAS_FR_DATA.value} varchar,'
-                               
-                               
-                               
-        
-        
-        
-        
                                      f'primary key ({SQL_CONSTS.UsersColumns.FIREBASE_UID}) '
                                      f');')
 
@@ -510,3 +503,11 @@ class PostgresClient:
     def update_users_fr_data(self,users_fr_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS_FR_DATA.value, data=users_fr_data,
                                           primary_key=SQL_CONSTS.UsersFrDataColumns.USER_ID.value)
+
+    def update_images_analyzed(self, user_id, filenames, timestamp):
+        sql_query = f'UPDATE {SQL_CONSTS.TablesNames.IMAGES.value} SET {SQL_CONSTS.ImageColumns.ANALYZED_IMAGE_TS.value}=%s ' \
+                    f'WHERE {SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.FILENAME.value} in %s'
+        data = (timestamp, user_id, tuple(filenames))
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_query, data)
