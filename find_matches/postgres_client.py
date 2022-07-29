@@ -310,7 +310,7 @@ class PostgresClient:
         if text_search is not None and len(text_search)>0:
             query +=  f" and lower(description) like %s "
             query_args += ['%'+text_search.lower()+'%']
-        if uid is not None:
+        if (uid is not None) and False:
             query += f' and not cast ({SQL_CONSTS.DummyUsersColumns.POF_ID.value} as varchar)  in (select {SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value} from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s) '
             query_args += [uid]
         query += f' order by random() limit {max_num_users}'
@@ -325,16 +325,16 @@ class PostgresClient:
                 data = sqlio.read_sql_query(full_query, connection)
                 return data
 
-    def get_real_matches(self,lat=None,lon=None,radium_in_kms=None,min_age=None,max_age=None,gender_index=None,uid=None,need_fr_data=False,text_search = '',max_num_users=1000):
+    def get_real_matches(self, lat=None, lon=None, radius_in_kms=None, min_age=None, max_age=None, gender_index=None, uid=None, need_fr_data=False, text_search ='', max_num_users=1000):
         
-        location_based_search = all([x is not None for x in [lat,lon,radium_in_kms]])
+        location_based_search = all([x is not None for x in [lat, lon, radius_in_kms]])
 
         #The idea is to change the query string, and query args in accordance with the parameters required
         query = f'SELECT * FROM {SQL_CONSTS.TablesNames.USERS.value} WHERE true '
         query_args = [] 
         if location_based_search:
             query += f' and earth_box(ll_to_earth(%s,%s ),%s*1000/1.609) @> ll_to_earth({SQL_CONSTS.UsersColumns.LATITUDE.value}, {SQL_CONSTS.UsersColumns.LONGITUDE.value}) '
-            query_args += [lat,lon,radium_in_kms]
+            query_args += [lat, lon, radius_in_kms]
 
         if min_age is not None:
             query += f' and {SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value}<=%s '

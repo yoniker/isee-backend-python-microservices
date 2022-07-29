@@ -95,7 +95,7 @@ aurora_password = 'dordordor'
 
 
 app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
-
+app.config.haifa_client = PostgresClient(database = 'dummy_users',user='yoni',password='dor',host='dordating.com')
 
 def settings_require_face_recognition(user_settings):
   if user_settings.get(SQL_CONSTS.UsersColumns.FILTER_NAME.value,None) == SQL_CONSTS.FilterTypes.CELEB_IMAGE.value and len(user_settings.get(SQL_CONSTS.UsersColumns.CELEB_ID.value, '')) > 0:
@@ -192,7 +192,8 @@ def get_user_matches(uid):
     t1 = time.time()
     show_dummy_profiles = user_settings[SQL_CONSTS.UsersColumns.SHOW_DUMMY_PROFILES.value]=='true'
     if show_dummy_profiles:
-      current_user_matches = app.config.aurora_client.get_dummy_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+      current_user_matches = app.config.haifa_client.get_dummy_matches(lat=lat,lon=lon,radius_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+      #pg_dump -t users_fr_data2 pof > users_fr_data2.sql
       t2 = time.time()
       current_user_matches[SQL_CONSTS.UsersColumns.HEIGHT_IN_CM.value]= current_user_matches['height'].apply(pof_height_to_height_in_cm)
       current_user_matches['user_type'] = 'dummy'
@@ -202,7 +203,7 @@ def get_user_matches(uid):
       current_user_matches.pets = current_user_matches.pets.apply(lambda x: json.dumps([x]) if x is not None and len(x)>0 else json.dumps(["No pets"])) #since pets expects a list of strings
     else: #real users
       print('Showing real users')
-      current_user_matches = app.config.aurora_client.get_real_matches(lat=lat,lon=lon,radium_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
+      current_user_matches = app.config.aurora_client.get_real_matches(lat=lat,lon=lon,radius_in_kms=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,text_search=text_search,max_num_users=limit)
       t2 = time.time()
       current_user_matches.replace({np.nan: None}, inplace=True)
       current_user_matches['age'] = current_user_matches[SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value].apply(datetime.fromtimestamp).apply(
@@ -278,6 +279,8 @@ docker run -d  -it -p20002:20002/tcp try
 #psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < users_fr_data2.dump
 
 #PGPASSWORD=dordordor nohup psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < dummy_users_images.dump &
+
+#docker build . -t find_matches
 
 #curl "localhost:20002/matches/5EX44AtZ5cXxW1O12G3tByRcC012"
 

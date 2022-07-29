@@ -8,7 +8,8 @@ COPY sql_consts.py /home/find_matches_service
 COPY server_consts.py /home/find_matches_service/
 COPY ./dummy_users_stats.pkl /home/find_matches_service/
 COPY postgres_client.py /home/find_matches_service
-#COPY ./.aws /home/find_matches_service/.aws
+ENV AWS_ACCESS_KEY_ID=AKIAVIASWTZFO7GHDZF4
+ENV AWS_SECRET_ACCESS_KEY=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
 EXPOSE 20002/tcp
 
 ENTRYPOINT ["python","-u","find_matches_service.py"]
