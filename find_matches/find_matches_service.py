@@ -17,7 +17,7 @@ from multiprocessing.pool import ThreadPool
 from dateutil.relativedelta import relativedelta
 from datetime import datetime
 app = Flask(__name__)
-
+RUNNING_ON_HAIFA = True
 
 FACE_RECOGNITION_THRESHOLDS = {'best':1.2,'good':1.24,'okish':1.262,'weak':1.278,'meh':1.3} #Thresholds I chose manually by going over some celebs data.
 
@@ -94,8 +94,12 @@ aurora_username = 'yoni'
 aurora_password = 'dordordor'
 
 
-app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
 app.config.haifa_client = PostgresClient(database = 'dummy_users',user='yoni',password='dor',host='dordating.com')
+if RUNNING_ON_HAIFA:
+  app.config.aurora_client = app.config.haifa_client
+else:
+  app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_reader_host)
+
 
 def settings_require_face_recognition(user_settings):
   if user_settings.get(SQL_CONSTS.UsersColumns.FILTER_NAME.value,None) == SQL_CONSTS.FilterTypes.CELEB_IMAGE.value and len(user_settings.get(SQL_CONSTS.UsersColumns.CELEB_ID.value, '')) > 0:
