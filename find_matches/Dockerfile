@@ -1,7 +1,7 @@
 FROM python:3.9.7
 RUN pip install psycopg2 flask
 RUN pip install pandas
-RUN pip install geopy boto3 ipdb
+RUN pip install geopy boto3 ipdb requests
 WORKDIR /home/find_matches_service
 COPY find_matches_service.py /home/find_matches_service
 COPY sql_consts.py /home/find_matches_service

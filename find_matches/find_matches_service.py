@@ -183,7 +183,8 @@ def get_user_matches(uid,user_settings=None):
     show_dummy_profiles = user_settings[SQL_CONSTS.UsersColumns.SHOW_DUMMY_PROFILES.value] == 'true'
     if not RUNNING_IN_HAIFA and show_dummy_profiles:
         response = requests.post(url='http://dordating.com:20002/haifa_path_for_dummy_users',json=user_settings)
-        return jsonify(response.json())
+        if response.ok:
+            return jsonify(response.json())
     lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value)
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value)
     search_distance_enabled = user_settings.get(SQL_CONSTS.UsersColumns.SEARCH_DISTANCE_ENABLED.value,SQL_CONSTS.UserRadiusEnabled.FALSE.value)
