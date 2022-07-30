@@ -26,9 +26,11 @@ from srv_resolve import resolve_srv_addr
 from dateutil.relativedelta import relativedelta
 from functools import partial
 from firebase_admin import auth
+import firebase_admin
 
 
 FIREBASE_PROJECT_ID = 'swiper-db2c5'
+default_app = firebase_admin.initialize_app()
 
 def calculate_birthday_timestamp(birthday_text):
     if birthday_text is None or len(birthday_text) == 0:
