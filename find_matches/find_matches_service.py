@@ -149,28 +149,6 @@ def get_custom_embeddings(custom_embedding_link):
   os.remove(full_local_filename)
   return custom_embedding
 
-
-@app.route('/matches/perform_query_aws')
-def perform_query_aws():
-    #lat=40.71427000,lon=-74.00597000
-    lat =  request.args.get('lat')
-    lon = request.args.get('lon')
-    radius = request.args.get('radius')
-    max_age = request.args.get('max_age')
-    min_age = request.args.get('min_age')
-    gender_index = request.args.get('gender_index')
-    uid = request.args.get('uid')
-    limit = int(request.args.get('limit') or 100)
-    need_fr_data = request.args.get('fr')=='true'
-    t1 = time.time()
-    result = app.config.aurora_client.get_matches(lat=lat,lon=lon,radius=radius,min_age=min_age,max_age=max_age,gender_index=gender_index,uid=uid,need_fr_data=need_fr_data,max_num_users=limit)
-    t2 = time.time()
-    if need_fr_data:
-      result['fr_data'] = result.fr_data.transform(pickle.loads)
-    t3 = time.time()
-    return jsonify({'time querying db':t2-t1,'time making jsonifyable':t3-t2,'overall time':t3-t1})
-
-
 @app.route('/haifa_path_for_dummy_users',methods=['POST'])
 def get_dummy_user_matches_from_haifa():
     user_settings = request.get_json(force = True)
@@ -269,52 +247,3 @@ def say_healthy():
 
 if __name__ == '__main__':
    app.run(threaded=True,port=20002,host="0.0.0.0",debug=False)
-
-
-
-'''
-
-docker build . -t find_matches:latest
-
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 360816483914.dkr.ecr.us-east-1.amazonaws.com
-
-docker tag find_matches:17 360816483914.dkr.ecr.us-east-1.amazonaws.com/find_matches:17
-docker push 360816483914.dkr.ecr.us-east-1.amazonaws.com/find_matches:17
-
-docker run -d -p -it 20002:20002/tcp find_matches:latest
-
-
-
-docker run -d  -it -p20002:20002/tcp try
-
-'''
-
-#
-
-#curl "localhost:20002/matches/perform_query_aws?lat=40.71&lon=-74.005&radius=40000&min_age=25&max_age=45&limit=2000&fr=true"
-
-
-#http://services.voilaserver.com/matches/perform_query_aws?lat=40.71&lon=-74.005&radius=40000&min_age=25&max_age=35&limit=10&fr=true
-
-#http://services.voilaserver.com/matches/no_join_query_aws?lat=40.71&lon=-74.105&radius=40000&min_age=25&max_age=35&limit=10
-
-#psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < users_fr_data2.dump
-
-#PGPASSWORD=dordordor nohup psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < dummy_users_images.dump &
-
-#docker build . -t find_matches
-
-#curl "localhost:20002/matches/5EX44AtZ5cXxW1O12G3tByRcC012"
-
-#services.voilaserver.com/matches/5EX44AtZ5cXxW1O12G3tByRcC012
-
-#psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < celebs.dump
-
-'''
-
-
-SELECT count(*) FROM dummy_users
-  WHERE earth_box(ll_to_earth(40.71427000, -74.00597000), 50000) @> ll_to_earth(latitude, longitude) and age>20 and age<55 and not cast (pof_id as varchar)  in (select decidee_id from decisions where decider_id='kRlw3NNKk5aavKfYEupXroBcfYp1')
-
-  curl "localhost:20002/matches/kRlw3NNKk5aavKfYEupXroBcfYp1"
-'''
