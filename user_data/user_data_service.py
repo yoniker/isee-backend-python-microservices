@@ -44,6 +44,7 @@ def calculate_birthday_timestamp(birthday_text):
 
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 
 DUMMY_BUCKET = 'com.voiladating.dummy'
 REAL_BUCKET= 'com.voiladating.users2'
@@ -236,7 +237,7 @@ def upload_profile_image(user_id):
     return jsonify({'status':'success','image_url':'profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
 
 
-@app.route('/user_data/profile_images/get_urls/<user_id>',strict_slashes=False)
+@app.route('/user_data/profile_images/get_urls/<user_id>')
 def get_user_image_urls(user_id):
     #TODO Auth
     user_images_details = app.config.aurora_client.get_user_profile_images(user_id=user_id)

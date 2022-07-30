@@ -149,7 +149,32 @@ class PostgresClient:
     
     
     def insert_new_image(self,upload_data):
-        return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.IMAGES.value,data=upload_data,primary_key=SQL_CONSTS.ImageColumns.PRIMARY_KEY)
+        '''
+        Have to have a special insert command as the priority has to be max of current priority+1.
+        Raw query:
+        insert into images(user_id,bucket_name,filename,type,priority) values ('d1','d1','d1','d1',(select coalesce(max(priority), 0)+1 from images where user_id='5EX44AtZ5cXxW1O12G3tByRcC012'))
+        :param upload_data:
+        :return:
+        '''
+        sql_cmd = f'INSERT INTO {SQL_CONSTS.TablesNames.IMAGES.value} ('\
+                  f'{SQL_CONSTS.ImageColumns.USER_ID.value},' \
+                  f'{SQL_CONSTS.ImageColumns.BUCKET_NAME.value},' \
+                  f'{SQL_CONSTS.ImageColumns.FILENAME.value},' \
+                  f'{SQL_CONSTS.ImageColumns.TYPE.value},' \
+                  f'{SQL_CONSTS.ImageColumns.PRIORITY.value}' \
+                  f') VALUES (%s,%s,%s,%s,' \
+                  f'(select coalesce(max(priority), 0)+1 from images where user_id=%s)' \
+                  f');'
+        data = (upload_data[SQL_CONSTS.ImageColumns.USER_ID.value],
+                upload_data[SQL_CONSTS.ImageColumns.BUCKET_NAME.value],
+                upload_data[SQL_CONSTS.ImageColumns.FILENAME.value],
+                upload_data[SQL_CONSTS.ImageColumns.TYPE.value],
+                upload_data[SQL_CONSTS.ImageColumns.USER_ID.value]
+                )
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd, data)
+
     
     
     def get_user_profile_images(self,user_id):
