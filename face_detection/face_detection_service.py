@@ -72,7 +72,12 @@ def analyze_from_s3(s3_path):
     s3 = boto3.client('s3')
     file_name = os.path.join('/cache',s3_path.split('/')[-1])
     os.makedirs(os.path.dirname(file_name),exist_ok=True)
-    s3.download_file(REAL_BUCKET, s3_path, file_name)
+    try:
+        s3.download_file(REAL_BUCKET, s3_path, file_name)
+    except botocore.exceptions.ClientError as e:
+        if e['ResponseMetadata']['HTTPStatusCode'] == 404:
+            return jsonify({'status':'s3 path not found'}),404
+        raise e
     img = Image.open(file_name)
     t1 = time.time()
     fr_data = request.args.get('fr_data',default='False')=='True'
