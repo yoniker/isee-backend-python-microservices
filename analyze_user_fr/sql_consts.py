@@ -177,7 +177,7 @@ class SQL_CONSTS:
         TYPE = 'type'
         IS_PROFILE = 'is_profile'
         FILENAME = 'filename'
-        ANALYZED_IMAGE_TS = 'analyzed_image_timestamp'
+        ANALYZED_FR_IMAGE_TS = 'analyzed_fr_image_timestamp'
         PRIMARY_KEY = f'({USER_ID},{FILENAME})'
 
     class UsersFrDataColumns(str, Enum):

@@ -36,3 +36,11 @@ def download_file_from_s3(filename,object_name,bucket=REAL_BUCKET):
             return True
     except:
         return False
+
+def generate_users_presigned_url(aws_key,bucket_name,expiresIn=60,region_name='us-east-1'):
+    session = boto3.session.Session()
+    s3_client = session.client('s3',region_name=region_name)
+    return s3_client.generate_presigned_url(
+        ClientMethod='get_object',
+        Params={'Bucket': bucket_name, 'Key': aws_key},
+        ExpiresIn=expiresIn)

@@ -491,7 +491,7 @@ class PostgresClient:
 
     def get_unanalyzed_images_by_uid(self,user_id):
         sql_query = f'SELECT * from {SQL_CONSTS.TablesNames.IMAGES.value} WHERE '\
-                    f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_IMAGE_TS.value} is null'
+                    f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_FR_IMAGE_TS.value} is null'
         data = (user_id,)
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
@@ -505,7 +505,7 @@ class PostgresClient:
                                           primary_key=SQL_CONSTS.UsersFrDataColumns.USER_ID.value)
 
     def update_images_analyzed(self, user_id, filenames, timestamp):
-        sql_query = f'UPDATE {SQL_CONSTS.TablesNames.IMAGES.value} SET {SQL_CONSTS.ImageColumns.ANALYZED_IMAGE_TS.value}=%s ' \
+        sql_query = f'UPDATE {SQL_CONSTS.TablesNames.IMAGES.value} SET {SQL_CONSTS.ImageColumns.ANALYZED_FR_IMAGE_TS.value}=%s ' \
                     f'WHERE {SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.FILENAME.value} in %s'
         data = (timestamp, user_id, tuple(filenames))
         with self.get_connection() as connection:
