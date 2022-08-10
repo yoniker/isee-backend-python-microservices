@@ -489,7 +489,7 @@ class PostgresClient:
                                f'primary key ({SQL_CONSTS.UsersFrDataColumns.USER_ID.value}) '
                                f');')
 
-    def get_unanalyzed_images_by_uid(self,user_id):
+    def get_unanalyzed_fr_images_by_uid(self, user_id):
         sql_query = f'SELECT * from {SQL_CONSTS.TablesNames.IMAGES.value} WHERE '\
                     f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_FR_IMAGE_TS.value} is null'
         data = (user_id,)

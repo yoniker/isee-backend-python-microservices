@@ -10,6 +10,7 @@ class EmbeddingsData:
     image_key: str
     embedding: np.ndarray
     detection_index: int
+    traits_data: dict
 
 
 def calc_distance_between_embeddings(embeddings1:EmbeddingsData, embeddings2:EmbeddingsData):

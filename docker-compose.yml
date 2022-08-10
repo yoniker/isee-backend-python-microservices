@@ -1,0 +1,16 @@
+version: "3.9"  # optional since v1.27.0
+services:
+  analyze_user_fr:
+    build: /home/yoni/Projects/docker_services/analyze_user_fr
+    stdin_open: true # docker run -i
+    tty: true # -t
+    ports:
+      - "20006:20006/tcp"
+    links:
+      - age_service
+  age_service:
+    build: /home/yoni/Projects/docker_services/traits_service
+    ports:
+      - "20007:20007/tcp"
+    stdin_open: true # docker run -i
+    tty: true

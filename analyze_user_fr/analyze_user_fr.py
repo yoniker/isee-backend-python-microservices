@@ -12,6 +12,7 @@ import numpy as np
 from group_faces import embeddings_to_groups,EmbeddingsData,get_mid_embedding
 from datetime import datetime
 from pandas import DataFrame
+from faceDetectionsApi import FaceDetection
 
 class EnvConsts(str, Enum):
     POSTGRES_USERNAME = 'POSTGRES_USERNAME'
@@ -54,7 +55,7 @@ def say_hello():
 @app.route('/analyze-user-fr/get_analysis/<user_id>')
 def get_user_analysis(user_id):
     #Step 1: Is the analysis ready? For now, assume that if there are no unanalyzed images, the user data is ready.
-    user_images_to_analyze = app.config.postgres_client.get_unanalyzed_images_by_uid(user_id=user_id)
+    user_images_to_analyze = app.config.postgres_client.get_unanalyzed_fr_images_by_uid(user_id=user_id)
     if len(user_images_to_analyze) > 0:
         return jsonify({'status':'user images still need to be analyzed'}),202
     user_analysis_s3_key = s3_groups_filename(user_id=user_id)
@@ -86,36 +87,56 @@ def redirect_user_fr_image(user_id,image_name,detection_index):
 @app.route('/analyze-user-fr/perform_analysis/<user_id>')
 def analyze_user(user_id): 
     #Step 1: Get the images for which we need to detect and fr
-    user_images_to_analyze = app.config.postgres_client.get_unanalyzed_images_by_uid(user_id=user_id)
+    user_images_to_analyze = app.config.postgres_client.get_unanalyzed_fr_images_by_uid(user_id=user_id)
     all_fr_data = dict()
+    all_traits_data = dict()
     user_fr_data_s3_key = os.path.join(s3_user_fr_dir(user_id=user_id), f'{user_id}.pickle')
     os.makedirs(local_location_save_data(user_id=user_id), exist_ok=True)
-    fr_user_filename = os.path.join(local_location_save_data(user_id=user_id), f'{user_id}.pickle')
-    prior_data_exists = download_file_from_s3(filename=fr_user_filename, object_name=user_fr_data_s3_key)
+    data_user_filename = os.path.join(local_location_save_data(user_id=user_id), f'{user_id}.pickle')
+    prior_data_exists = download_file_from_s3(filename=data_user_filename, object_name=user_fr_data_s3_key)
     if prior_data_exists:
-        with open(fr_user_filename, 'rb') as f:
-            all_fr_data = pickle.load(f)
+        with open(data_user_filename, 'rb') as f:
+            all_data = pickle.load(f)
+            all_fr_data = all_data['fr']
+            all_traits_data = all_data['traits']
     for user_image_to_analyze in user_images_to_analyze:
         aws_key = user_image_to_analyze[SQL_CONSTS.ImageColumns.FILENAME.value]
         assert user_id == user_image_to_analyze[SQL_CONSTS.ImageColumns.USER_ID.value]
-        if aws_key in all_fr_data.keys():
+        if (aws_key in all_fr_data.keys()) and (aws_key in all_traits_data.keys()): #Eg if image was already analyzed by traits and by fr
             continue
         response = requests.get(f'https://services.voilaserver.com/analyze/froms3/{aws_key}?fr_data=True&display_images=True') #TODO use SRV dns resolution
         if not response.ok:
             continue
         analyzed_data = response.json()
         detections_data = analyzed_data['detections_data']
-        s3_current_image_fr_save_location = os.path.join(s3_user_fr_dir(user_id=user_id),os.path.basename(aws_key))
-        for i, (display_image_data,fr_data) in enumerate(zip(detections_data['display_images'],detections_data['fr_data'])):
+        jsoned_detections = detections_data['detections']
+        #detections = [FaceDetection.from_json(jsoned_detection) for jsoned_detection in jsoned_detections]
+        #localhost: 5000 / age_service / analyze
+        traits_response = requests.post(f'https://services.voilaserver.com/traits/analyze/{aws_key}',
+                      json={'detections':jsoned_detections}
+                      ) #TODO change DNS resolution to SRV
+        detections_traits_data = traits_response.json().get('traits',[]) #should be a list with each detection traits
+        if not len(detections_traits_data) == len(jsoned_detections):
+            return jsonify({'status':'error:different traits and detections lengths', 'details': f'error - traits length is {len(detections_traits_data)} and not equal to detections length which is {len(jsoned_detections)}'})
+        s3_profile_analysis_save_location = os.path.join(s3_user_fr_dir(user_id=user_id),os.path.basename(aws_key))
+        for i, (display_image_data,fr_data,detection_trait_data) in enumerate(zip(detections_data['display_images'],detections_data['fr_data'],detections_traits_data)):
+            #save display image
             display_image = jsoned_image_to_image(display_image_data)
             display_image_filename = os.path.join(local_location_save_data(user_id=user_id), f'{i}.jpg')
             display_image.save(display_image_filename)
-            upload_file_to_s3(file_name=display_image_filename,bucket=REAL_BUCKET,object_name=os.path.join(s3_current_image_fr_save_location,os.path.basename(display_image_filename)))
+            upload_file_to_s3(file_name=display_image_filename,bucket=REAL_BUCKET,object_name=os.path.join(s3_profile_analysis_save_location,os.path.basename(display_image_filename)))
+            #save fr data
             fr_data = np.array(fr_data).squeeze()
             fr_filename = os.path.join(local_location_save_data(user_id=user_id), f'{i}_fr.pickle')
             with open(fr_filename,'wb') as f:
                 pickle.dump(fr_data, f,protocol=pickle.HIGHEST_PROTOCOL)
-            upload_file_to_s3(file_name=fr_filename,object_name=os.path.join(s3_current_image_fr_save_location,os.path.basename(fr_filename)))
+            upload_file_to_s3(file_name=fr_filename,object_name=os.path.join(s3_profile_analysis_save_location,os.path.basename(fr_filename)))
+            #save traits data
+            traits_filename = os.path.join(local_location_save_data(user_id=user_id), f'{i}_traits.pickle')
+            with open(traits_filename, 'wb') as f:
+                pickle.dump(detection_trait_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+            upload_file_to_s3(file_name=traits_filename, object_name=os.path.join(s3_profile_analysis_save_location,
+                                                                              os.path.basename(traits_filename)))
         image_fr_data = detections_data['fr_data']
         image_fr_data = [np.array(x).squeeze() for x in image_fr_data]
         #fr_filename = os.path.join(local_location_save_images(user_id=user_id),f'{os.path.basename(aws_key)}.pickle')
@@ -123,11 +144,12 @@ def analyze_user(user_id):
         #    pickle.dump(image_fr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
         #upload_file_to_s3(file_name=fr_filename,bucket=REAL_BUCKET,object_name=os.path.join(s3_current_image_fr_save_location,f'{os.path.basename(aws_key)}.pickle'))
         all_fr_data[aws_key] = image_fr_data
+        all_traits_data[aws_key] = detections_traits_data
         print(f'done with the file {os.path.basename(aws_key)}')
-    
-    with open(fr_user_filename, 'wb') as handle:
-        pickle.dump(all_fr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    upload_file_to_s3(file_name=fr_user_filename,bucket=REAL_BUCKET,object_name=user_fr_data_s3_key)
+    all_data = {'fr':all_fr_data,'traits':all_traits_data}
+    with open(data_user_filename, 'wb') as handle:
+        pickle.dump(all_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    upload_file_to_s3(file_name=data_user_filename,bucket=REAL_BUCKET,object_name=user_fr_data_s3_key)
     if len(user_images_to_analyze) > 0:
         app.config.postgres_client.update_images_analyzed(user_id=user_id,
                                                           filenames=[x[SQL_CONSTS.ImageColumns.FILENAME.value] for x in user_images_to_analyze],
@@ -143,11 +165,15 @@ def analyze_user(user_id):
     if len(in_profile_images_fr_data) != len(in_profile_images_filenames):
         #TODO in the (far) future, if needed then restart the process here (if not all the data on profile images is available). This can happen if the user uploaded an image just as we checked previously :D
         pass
+
+
+
+
     # analyze the user fr_data, create mutual exclusive groups of faces
     embeddings_data = []
     for aws_key,image_fr_data in in_profile_images_fr_data.items():
         for detection_index,detection_fr_data in enumerate(image_fr_data):
-            embeddings_data.append(EmbeddingsData(image_key=aws_key,embedding=detection_fr_data,detection_index=detection_index))
+            embeddings_data.append(EmbeddingsData(image_key=aws_key,embedding=detection_fr_data,detection_index=detection_index,traits_data=all_traits_data[aws_key][detection_index]))
     embeddings_grouped = embeddings_to_groups(embeddings_data=embeddings_data)
     mid_embedding = get_mid_embedding(embeddings_grouped[0]) if len(embeddings_grouped)>0 else None
     embeddings_grouped_data = {'groups':embeddings_grouped,'mid_embedding':mid_embedding}
@@ -185,7 +211,7 @@ with open('celebs.pickle', 'rb') as f:
     all_celebs_data = pickle.load(f)
 all_celeb_embeddings = np.stack(all_celebs_data.fr_data, axis=0)
 
-def get_most_lookalike_celebs(embeddings, num_celebs=20):
+def get_most_lookalike_celebs(embeddings, num_celebs=5):
     distances = np.linalg.norm(embeddings - all_celeb_embeddings, axis=1)
     name_distances = DataFrame({'distance': distances,'celebname': all_celebs_data.celebname})
     name_distances.sort_values(by=['distance'], inplace=True)
@@ -201,12 +227,26 @@ def get_analyzed_profile_fr_data(user_id, image_filename, detection_index):
         fr_data = pickle.load(f)
     return fr_data
 
+def get_analyzed_traits(user_id, image_filename, detection_index): #TODO DRY - merge with above function
+    s3_fr_data_location = os.path.join(s3_user_fr_dir(user_id),image_filename,f'{detection_index}_traits.pickle')
+    local_fr_location = os.path.join(local_location_save_data(user_id=user_id),os.path.basename(s3_fr_data_location))
+    os.makedirs(os.path.dirname(local_fr_location),exist_ok=True)
+    download_file_from_s3(filename=local_fr_location,object_name=s3_fr_data_location)
+    with open(local_fr_location,'rb') as f:
+        traits_data = pickle.load(f)
+    return traits_data
+
 @app.route('/analyze-user-fr/get_celebs_lookalike/<user_id>/<image_filename>/<detection_index>')
 def get_most_lookalike_celebs_by_image(user_id, image_filename, detection_index):
     fr_data_chosen = get_analyzed_profile_fr_data(user_id=user_id,image_filename=image_filename,detection_index=detection_index)
     celebs_data = get_most_lookalike_celebs(embeddings=fr_data_chosen)
     return jsonify({'celebs_data':celebs_data,'status':'success'})
 
+@app.route('/analyze-user-fr/get_traits/<user_id>/<image_filename>/<detection_index>')
+def get_traits_by_detection(user_id, image_filename, detection_index):
+    traits_data_chosen = get_analyzed_traits(user_id=user_id, image_filename=image_filename,
+                                                  detection_index=detection_index)
+    return jsonify({'traits': traits_data_chosen, 'status': 'success'})
     #5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0
 
 
@@ -220,6 +260,5 @@ docker build . -t analyze_user_fr
 docker run -it -d -p20006:20006/tcp analyze_user_fr
 curl "localhost:20006/analyze-user-fr/get_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
 curl "localhost:20006/analyze-user-fr/perform_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
-
 curl "localhost:20006/analyze-user-fr/get_celebs_lookalike/5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0"
 '''
