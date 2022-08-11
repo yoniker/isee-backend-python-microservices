@@ -286,6 +286,10 @@ class PostgresClient:
          self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.DECISIONS.value,
                                          data=decisions_data,
                                          primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
+
+    def post_decision(self, decision_data):
+        return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.DECISIONS.value, data=decision_data,
+                                          primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
     
     @staticmethod
     def get_conversation_id(userid1,userid2):

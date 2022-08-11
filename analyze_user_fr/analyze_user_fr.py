@@ -211,7 +211,7 @@ with open('celebs.pickle', 'rb') as f:
     all_celebs_data = pickle.load(f)
 all_celeb_embeddings = np.stack(all_celebs_data.fr_data, axis=0)
 
-def get_most_lookalike_celebs(embeddings, num_celebs=5):
+def get_most_lookalike_celebs(embeddings, num_celebs=7):
     distances = np.linalg.norm(embeddings - all_celeb_embeddings, axis=1)
     name_distances = DataFrame({'distance': distances,'celebname': all_celebs_data.celebname})
     name_distances.sort_values(by=['distance'], inplace=True)
