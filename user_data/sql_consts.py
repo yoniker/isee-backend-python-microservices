@@ -108,10 +108,14 @@ class SQL_CONSTS:
         PETS = 'pets'
         TEXT_SEARCH = 'text_search'
         REGISTRATION_STATUS = 'registration_status'
+        IS_TEST_USER = 'is_test_user'
         HAS_FR_DATA = 'has_fr_data'
+
         
     class REGISTRATION_STATUS_TYPES(str, Enum):
-        REGISTERED = 'registered'
+        NOT_REGISTERED = 'notRegistered'
+        REGISTERED_NOT_APPROVED = 'registeredNotApproved'
+        REGISTERED_APPROVED = 'registeredApproved'
         DELETED = 'deleted'
         
     class ADDED_USER_COLUMNS(str, Enum):

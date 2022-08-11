@@ -132,6 +132,7 @@ class PostgresClient:
                                      f'{SQL_CONSTS.UsersColumns.PETS} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.TEXT_SEARCH} varchar,'
                                      f'{SQL_CONSTS.UsersColumns.HAS_FR_DATA.value} varchar,'
+                                     f'{SQL_CONSTS.UsersColumns.IS_TEST_USER.value} varchar,'
                                      f'primary key ({SQL_CONSTS.UsersColumns.FIREBASE_UID}) '
                                      f');')
 

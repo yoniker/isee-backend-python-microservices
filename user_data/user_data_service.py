@@ -514,7 +514,9 @@ def handle_token(decoded_token,ignore_if_registered:bool):
             user_id=data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_UID.value])
         if len(current_user_data) > 0:
             if current_user_data.get(SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
-                                     None) == SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED.value:
+                                     None) in [SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value,
+                                               SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_NOT_APPROVED.value
+                                               ]:
                 return jsonify({
                     ServerConsts.RegistrationResponses.STATUS.value: ServerConsts.RegistrationResponses.ALREADY_REGISTERED.value,
                     ServerConsts.RegistrationResponses.USER_DATA.value: current_user_data
@@ -534,8 +536,9 @@ def register_user():
     
     
 
-def is_test_user(user_id):
-    return True #TODO implement
+def test_user_status(user_id):
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    return user_data.get(SQL_CONSTS.UsersColumns.IS_TEST_USER.value,ServerConsts.TestUserStates.IS_NOT_TEST_USER.value)
 
 
 @app.route('/user_data/verify_token', methods=['GET'])
@@ -554,27 +557,27 @@ def verify_token():
 
 @app.route('/user_data/users_in_location/<user_id>', methods=['GET'])
 def count_users_current_location(user_id):
-    MINIMUM_THRESHOLD = 2000 if not is_test_user(user_id) else 0
+    MINIMUM_THRESHOLD = 2000 if not test_user_status(user_id)==ServerConsts.TestUserStates.IS_TEST_USER.value else 0
     #TODO auth
     user_settings = app.config.aurora_client.get_user_by_id(user_id=user_id)
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value, None)
     lat = user_settings.get(SQL_CONSTS.UsersColumns.LATITUDE.value, None)
     if any([x is None for x in [lon, lat]]):
         return jsonify({ServerConsts.LocationCountResponses.STATUS.value:ServerConsts.LocationCountResponses.UNKNOWN_USER_LOCATION.value,
-                        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+                        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (test_user_status(user_id))
                         })
     count = app.config.aurora_client.num_users_by_location(lat,lon)
     if count>=MINIMUM_THRESHOLD:
         return jsonify({
            ServerConsts.LocationCountResponses.STATUS.value: ServerConsts.LocationCountResponses.ENOUGH_USERS.value,
-            ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+            ServerConsts.LocationCountResponses.IS_TEST_USER.value: (test_user_status(user_id))
         })
     #If here it's only when there are not enough users, so therefore:
     return jsonify({
         ServerConsts.LocationCountResponses.STATUS.value: ServerConsts.LocationCountResponses.NOT_ENOUGH_USERS.value,
         ServerConsts.LocationCountResponses.CURRENT_NUM.value : count,
         ServerConsts.LocationCountResponses.REQUIRED_NUM.value : MINIMUM_THRESHOLD,
-        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (is_test_user(user_id))
+        ServerConsts.LocationCountResponses.IS_TEST_USER.value: (test_user_status(user_id))
         
     })
     

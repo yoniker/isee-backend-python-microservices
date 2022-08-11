@@ -17,10 +17,14 @@ class ServerConsts:
         SEARCHING = 'searching'
         
     class RegistrationResponses(str, Enum):
-        NEW_REGISTER = 'new_register'
         ALREADY_REGISTERED = 'registered'
+        #Here are the actual responses consts
         STATUS = 'status'
+        NEW_REGISTER = 'new_register'
         USER_DATA = 'user_data'
+    class TestUserStates(str,Enum):
+        IS_TEST_USER = 'isTestUser'
+        IS_NOT_TEST_USER = 'notTestUser'
         
     class LocationCountResponses(str, Enum):
         STATUS = 'status'
