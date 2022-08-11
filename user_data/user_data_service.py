@@ -27,10 +27,15 @@ from dateutil.relativedelta import relativedelta
 from functools import partial
 from firebase_admin import auth
 import firebase_admin
+import concurrent.futures
+import requests
+
+user_analyze_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
 
 FIREBASE_PROJECT_ID = 'swiper-db2c5'
 default_app = firebase_admin.initialize_app()
+
 
 def calculate_birthday_timestamp(birthday_text):
     if birthday_text is None or len(birthday_text) == 0:
@@ -234,6 +239,7 @@ def upload_profile_image(user_id):
     app.config.aurora_client.insert_new_image(upload_data=upload_data)
     # Step 3.Delete the file from local cache
     os.remove(full_file_uploaded_path)
+    user_analyze_pool.submit(requests.get,f'https://services.voilaserver.com/analyze-user-fr/perform_analysis/{user_id}')
     return jsonify({'status':'success','image_url':'profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
 
 
@@ -296,6 +302,8 @@ def delete_profile_image(user_id):
     #TODO make sure that the user refers to his own files
     app.config.aurora_client.delete_image(image_key=file_key)
     #TODO in the future,remove it after some time from s3. For now keep it, to make other users experience better in case they already have the link to this image somewhere
+    user_analyze_pool.submit(requests.get,
+                             f'https://services.voilaserver.com/analyze-user-fr/perform_analysis/{user_id}')
     return jsonify({'status':'success'})
 
 
