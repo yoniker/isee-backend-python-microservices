@@ -95,10 +95,13 @@ def analyze_user(user_id):
     data_user_filename = os.path.join(local_location_save_data(user_id=user_id), f'{user_id}.pickle')
     prior_data_exists = download_file_from_s3(filename=data_user_filename, object_name=user_fr_data_s3_key)
     if prior_data_exists:
-        with open(data_user_filename, 'rb') as f:
-            all_data = pickle.load(f)
-            all_fr_data = all_data['fr']
-            all_traits_data = all_data['traits']
+        try:
+            with open(data_user_filename, 'rb') as f:
+                all_data = pickle.load(f)
+                all_fr_data = all_data['fr']
+                all_traits_data = all_data['traits']
+        except:
+            pass
     for user_image_to_analyze in user_images_to_analyze:
         aws_key = user_image_to_analyze[SQL_CONSTS.ImageColumns.FILENAME.value]
         assert user_id == user_image_to_analyze[SQL_CONSTS.ImageColumns.USER_ID.value]
