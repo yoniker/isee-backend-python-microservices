@@ -22,9 +22,15 @@ class ServerConsts:
         STATUS = 'status'
         NEW_REGISTER = 'new_register'
         USER_DATA = 'user_data'
-    class TestUserStates(str,Enum):
-        IS_TEST_USER = 'isTestUser'
-        IS_NOT_TEST_USER = 'notTestUser'
+
+    class PushedData(str,Enum):
+        PUSH_NOTIFICATION_TYPE = 'push_notification_type'
+        NEW_READ_RECIEPT = 'new_read_receipt'
+        MATCH_INFO = 'match_info'
+        CHANGE_USER_STATUS = 'change_user_status'
+        CHANGE_USER_KEY = 'change_user_key'
+        CHANGE_USER_VALUE = 'change_user_value'
+
         
     class LocationCountResponses(str, Enum):
         STATUS = 'status'

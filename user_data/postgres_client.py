@@ -288,6 +288,25 @@ class PostgresClient:
                                          data=decisions_data,
                                          primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
 
+    def register_test_user(self,user_id):
+        data = {
+            SQL_CONSTS.UsersColumns.FIREBASE_UID.value: user_id,
+            SQL_CONSTS.UsersColumns.IS_TEST_USER.value: SQL_CONSTS.TestUserStates.IS_TEST_USER.value
+        }
+        self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
+                                   data = data,
+                                   primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+
+
+    def approve_user(self,user_id):
+        data = {
+            SQL_CONSTS.UsersColumns.FIREBASE_UID.value: user_id,
+            SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value
+        }
+        self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
+                                   data = data,
+                                   primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+
     def post_decision(self, decision_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.DECISIONS.value, data=decision_data,
                                           primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)

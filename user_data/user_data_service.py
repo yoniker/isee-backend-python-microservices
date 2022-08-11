@@ -541,6 +541,27 @@ def test_user_status(user_id):
     return user_data.get(SQL_CONSTS.UsersColumns.IS_TEST_USER.value,ServerConsts.TestUserStates.IS_NOT_TEST_USER.value)
 
 
+@app.route('/user_data/add_test_user/<user_id>')
+def add_test_user(user_id):
+    app.config.aurora_client.register_test_user(user_id=user_id)
+    send_message(user_id=user_id, data={
+      ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.IS_TEST_USER.value,
+      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.TestUserStates.IS_TEST_USER.value
+    })
+    return jsonify({'status':'success'})
+
+
+@app.route('/user_data/approve_user/<user_id>')
+def approve_user(user_id):
+    app.config.aurora_client.approve_user(user_id=user_id)
+    send_message(user_id=user_id, data={
+      ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value
+    })
+    return jsonify({'status':'success'})
+
 @app.route('/user_data/verify_token', methods=['GET'])
 def verify_token():
     '''
@@ -557,7 +578,7 @@ def verify_token():
 
 @app.route('/user_data/users_in_location/<user_id>', methods=['GET'])
 def count_users_current_location(user_id):
-    MINIMUM_THRESHOLD = 2000 if not test_user_status(user_id)==ServerConsts.TestUserStates.IS_TEST_USER.value else 0
+    MINIMUM_THRESHOLD = 2000 if not test_user_status(user_id)==SQL_CONSTS.TestUserStates.IS_TEST_USER.value else 0
     #TODO auth
     user_settings = app.config.aurora_client.get_user_by_id(user_id=user_id)
     lon = user_settings.get(SQL_CONSTS.UsersColumns.LONGITUDE.value, None)

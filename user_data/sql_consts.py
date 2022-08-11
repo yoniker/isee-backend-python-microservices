@@ -117,6 +117,9 @@ class SQL_CONSTS:
         REGISTERED_NOT_APPROVED = 'registeredNotApproved'
         REGISTERED_APPROVED = 'registeredApproved'
         DELETED = 'deleted'
+    class TestUserStates(str,Enum):
+        IS_TEST_USER = 'isTestUser'
+        IS_NOT_TEST_USER = 'notTestUser'
         
     class ADDED_USER_COLUMNS(str, Enum):
         AGE = 'age'
