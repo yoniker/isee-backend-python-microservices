@@ -20,6 +20,8 @@ class RelayMessageToWebsocket(HTTPEndpoint):
         try:
             receiver_id = request.path_params['user_id']
             data = await request.json()
+            if receiver_id not in websockets:
+                JSONResponse({'result': 'message_not_sent','details':'User not found in active websockets'})
             websocket = websockets[receiver_id]
             try:
                 await websocket.send(json.dumps(data))

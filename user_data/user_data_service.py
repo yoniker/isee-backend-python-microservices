@@ -474,7 +474,11 @@ def get_all_messages(userid, timestamp):
             relevant_messages_dict[message_id]['receipts'] = []
         relevant_messages_dict[message_id]['receipts'].append(relevant_receipt)
     relevant_matches_changes = app.config.aurora_client.get_matches_by_timeline(userid=userid,timestamp=timestamp)
-    data = {'messages_data':list(relevant_messages_dict.values()),'matches_data':relevant_matches_changes}
+    data = {'messages_data': list(relevant_messages_dict.values()), 'matches_data': relevant_matches_changes,}
+    if request.args.get('get_user_data', 'false') == 'true':
+        user_data = app.config.aurora_client.get_user_by_id(user_id=userid)
+        data['user_data'] = user_data
+
     print(f'SYNC Going to send {data}')
     return jsonify(data)
 
@@ -544,22 +548,26 @@ def test_user_status(user_id):
 @app.route('/user_data/add_test_user/<user_id>')
 def add_test_user(user_id):
     app.config.aurora_client.register_test_user(user_id=user_id)
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    fcm_token = user_data[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
     send_message(user_id=user_id, data={
       ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.IS_TEST_USER.value,
       ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.TestUserStates.IS_TEST_USER.value
-    })
+    },fcm_token=fcm_token)
     return jsonify({'status':'success'})
 
 
 @app.route('/user_data/approve_user/<user_id>')
 def approve_user(user_id):
     app.config.aurora_client.approve_user(user_id=user_id)
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    fcm_token = user_data[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
     send_message(user_id=user_id, data={
       ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value
-    })
+    },fcm_token=fcm_token)
     return jsonify({'status':'success'})
 
 @app.route('/user_data/verify_token', methods=['GET'])
