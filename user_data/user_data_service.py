@@ -513,7 +513,7 @@ def handle_token(decoded_token,ignore_if_registered:bool):
         # Let's see if the user is already registered, and if so let's give the phone an indication
         current_user_data = app.config.aurora_client.get_user_by_id(
             user_id=data_from_token[SQL_CONSTS.UsersColumns.FIREBASE_UID.value])
-        if len(current_user_data) > 0:
+        if current_user_data is not None and len(current_user_data) > 0:
             if current_user_data.get(SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
                                      None) in [SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value,
                                                SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_NOT_APPROVED.value
