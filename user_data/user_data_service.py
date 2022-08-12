@@ -474,10 +474,7 @@ def get_all_messages(userid, timestamp):
             relevant_messages_dict[message_id]['receipts'] = []
         relevant_messages_dict[message_id]['receipts'].append(relevant_receipt)
     relevant_matches_changes = app.config.aurora_client.get_matches_by_timeline(userid=userid,timestamp=timestamp)
-    data = {'messages_data': list(relevant_messages_dict.values()), 'matches_data': relevant_matches_changes,}
-    if request.args.get('get_user_data', 'false') == 'true':
-        user_data = app.config.aurora_client.get_user_by_id(user_id=userid)
-        data['user_data'] = user_data
+    data = {'messages_data': list(relevant_messages_dict.values()), 'matches_data': relevant_matches_changes}
 
     print(f'SYNC Going to send {data}')
     return jsonify(data)
@@ -532,6 +529,11 @@ def handle_token(decoded_token,ignore_if_registered:bool):
         , ServerConsts.RegistrationResponses.USER_DATA.value: {SQL_CONSTS.UsersColumns.FIREBASE_UID.value: uid}})
 
 
+@app.route('/user_data/get_user_data/<user_id>')
+def get_all_user_data(user_id):
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    return jsonify({'user_data':user_data})
+
 @app.route('/user_data/register_firebase_uid', methods=['GET'])
 def register_user():
     firebase_id_token = request.headers.get("firebase_id_token")
@@ -542,7 +544,7 @@ def register_user():
 
 def test_user_status(user_id):
     user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
-    return user_data.get(SQL_CONSTS.UsersColumns.IS_TEST_USER.value,ServerConsts.TestUserStates.IS_NOT_TEST_USER.value)
+    return user_data.get(SQL_CONSTS.UsersColumns.IS_TEST_USER.value, SQL_CONSTS.TestUserStates.IS_NOT_TEST_USER.value)
 
 
 @app.route('/user_data/add_test_user/<user_id>')
