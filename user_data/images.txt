@@ -1,0 +1,55 @@
+172.31.9.208 - - [15/Aug/2022 20:43:45] "GET /user_data/dummy/149148200/149148200.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:48] "GET /user_data/dummy/120680726/120680726.11.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:48] "GET /user_data/dummy/134829817/134829817.3.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:48] "GET /user_data/dummy/120680726/120680726.3.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/120680726/120680726.10.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/134829817/134829817.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/157119369/157119369.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/85922233/85922233.3.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/134829817/134829817.3.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:49] "GET /user_data/dummy/119094449/119094449.1.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:50] "GET /user_data/dummy/162277257/162277257.1.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:50] "GET /user_data/dummy/120680726/120680726.6.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/148731536/148731536.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/112234537/112234537.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/71526708/71526708.5.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/120680726/120680726.4.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/85922233/85922233.5.jpg HTTP/1.1" 302 -
+DDDDOOOOOORRRRR AT GET USER MESSAGES, I AM GOING TO RUN THE COMMAND:
+b"select * from messages where changed_date > 0.0 and conversation_id in (select conversation_id from participants where firebase_uid='N19ONw7cexOxjmjx3dlZk2957i03');"
+172.31.92.115 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/120680726/120680726.2.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:51] "GET /user_data/dummy/71526708/71526708.6.jpg HTTP/1.1" 302 -
+relevant messages at SQL are []
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/120680726/120680726.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/71526708/71526708.2.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/84024822/84024822.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/120680726/120680726.12.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/87984032/87984032.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/149148200/149148200.2.jpg HTTP/1.1" 302 -
+SYNC Going to send {'messages_data': [], 'matches_data': []}
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/sync/N19ONw7cexOxjmjx3dlZk2957i03/0.0 HTTP/1.1" 200 -
+172.31.92.115 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/120680726/120680726.9.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:52] "GET /user_data/dummy/112234537/112234537.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/160887157/160887157.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/119094449/119094449.9.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/119094449/119094449.7.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/85922233/85922233.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/users_in_location/N19ONw7cexOxjmjx3dlZk2957i03 HTTP/1.1" 200 -
+172.31.9.208 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/85922233/85922233.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/get_user_data/N19ONw7cexOxjmjx3dlZk2957i03 HTTP/1.1" 200 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/160887157/160887157.3.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/160887157/160887157.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/119094449/119094449.5.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/120680726/120680726.5.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/120680726/120680726.12.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/120680726/120680726.11.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/160887157/160887157.2.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/119094449/119094449.3.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/161507210/161507210.1.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:53] "GET /user_data/dummy/120680726/120680726.7.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/160887157/160887157.3.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/85922233/85922233.4.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/71526708/71526708.7.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/148731536/148731536.1.jpg HTTP/1.1" 302 -
+172.31.92.115 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/85922233/85922233.4.jpg HTTP/1.1" 302 -
+172.31.9.208 - - [15/Aug/2022 20:43:54] "GET /user_data/dummy/85922233/85922233.2.jpg HTTP/1.1" 302

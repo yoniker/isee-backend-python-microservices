@@ -66,13 +66,15 @@ app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_u
 app.config.local_cache_dir = 'tmp/local_cache'
 os.makedirs(app.config.local_cache_dir,exist_ok=True)
 
-def generate_users_presigned_url(aws_key,bucket_name,expiresIn=60,region_name='us-east-1'):
-    session = boto3.session.Session()
-    s3_client = session.client('s3',region_name=region_name)
-    return s3_client.generate_presigned_url(
+
+def generate_users_presigned_url(aws_key,bucket_name,expiresIn=300,region_name='us-east-1'):
+    s3_client = boto3.client('s3', region_name=region_name)
+    url =  s3_client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': aws_key},
         ExpiresIn=expiresIn)
+    del s3_client
+    return url
 
 def get_real_user_images(user_id):
     user_images_details = app.config.aurora_client.get_user_profile_images(user_id)
@@ -254,7 +256,7 @@ def get_user_image_urls(user_id):
 @app.route('/user_data/dummy/<user_id>/<filename>')
 def redirect_to_aws_dummy(user_id,filename):
     aws_key = f'{user_id}/{filename}'
-    url = generate_users_presigned_url(aws_key=aws_key,bucket_name=DUMMY_BUCKET,expiresIn=300,region_name='us-east-2')
+    url = generate_users_presigned_url(aws_key=aws_key, bucket_name=DUMMY_BUCKET, expiresIn=300, region_name='us-east-2')
     return redirect(url, code=302)
 
 @app.route('/user_data/profile/<user_id>')
@@ -549,13 +551,25 @@ def test_user_status(user_id):
 
 @app.route('/user_data/add_test_user/<user_id>')
 def add_test_user(user_id):
-    app.config.aurora_client.register_test_user(user_id=user_id)
+    app.config.aurora_client.add_test_user(user_id=user_id)
     user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
     fcm_token = user_data[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
     send_message(user_id=user_id, data={
       ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.IS_TEST_USER.value,
       ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.TestUserStates.IS_TEST_USER.value
+    },fcm_token=fcm_token)
+    return jsonify({'status':'success'})
+
+@app.route('/user_data/remove_test_user/<user_id>')
+def remove_test_user(user_id):
+    app.config.aurora_client.remove_test_user(user_id=user_id)
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    fcm_token = user_data[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
+    send_message(user_id=user_id, data={
+      ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.IS_TEST_USER.value,
+      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.TestUserStates.IS_NOT_TEST_USER.value
     },fcm_token=fcm_token)
     return jsonify({'status':'success'})
 
@@ -569,6 +583,18 @@ def approve_user(user_id):
       ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value
+    },fcm_token=fcm_token)
+    return jsonify({'status':'success'})
+
+@app.route('/user_data/disapprove_user/<user_id>')
+def disapprove_user(user_id):
+    app.config.aurora_client.disapprove_user(user_id=user_id)
+    user_data = app.config.aurora_client.get_user_by_id(user_id=user_id)
+    fcm_token = user_data[SQL_CONSTS.UsersColumns.FCM_TOKEN.value]
+    send_message(user_id=user_id, data={
+      ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
+      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_NOT_APPROVED.value
     },fcm_token=fcm_token)
     return jsonify({'status':'success'})
 

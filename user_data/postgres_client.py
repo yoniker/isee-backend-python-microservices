@@ -288,10 +288,18 @@ class PostgresClient:
                                          data=decisions_data,
                                          primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
 
-    def register_test_user(self,user_id):
+    def add_test_user(self, user_id):
         data = {
             SQL_CONSTS.UsersColumns.FIREBASE_UID.value: user_id,
             SQL_CONSTS.UsersColumns.IS_TEST_USER.value: SQL_CONSTS.TestUserStates.IS_TEST_USER.value
+        }
+        self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
+                                   data = data,
+                                   primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+    def remove_test_user(self, user_id):
+        data = {
+            SQL_CONSTS.UsersColumns.FIREBASE_UID.value: user_id,
+            SQL_CONSTS.UsersColumns.IS_TEST_USER.value: SQL_CONSTS.TestUserStates.IS_NOT_TEST_USER.value
         }
         self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
                                    data = data,
@@ -306,7 +314,26 @@ class PostgresClient:
         self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
                                    data = data,
                                    primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
+    def disapprove_user(self,user_id):
+        data = {
+            SQL_CONSTS.UsersColumns.FIREBASE_UID.value: user_id,
+            SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_NOT_APPROVED.value
+        }
+        self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value,
+                                   data = data,
+                                   primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID.value)
 
+    def get_decision(self, decider, decidee):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f'select * from {SQL_CONSTS.TablesNames.DECISIONS.value} where {SQL_CONSTS.DecisionsColumns.DECIDER_ID.value}=%s '
+                    f'and {SQL_CONSTS.DecisionsColumns.DECIDEE_ID.value} = %s',
+                    (decider, decidee))
+                results = cursor.fetchall()
+                if len(results) == 0:
+                    return {}
+                return dict(results[0])
     def post_decision(self, decision_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.DECISIONS.value, data=decision_data,
                                           primary_key=SQL_CONSTS.DecisionsColumns.PRIMARY_KEY.value)
