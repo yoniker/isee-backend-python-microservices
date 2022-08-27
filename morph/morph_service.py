@@ -1,11 +1,11 @@
-from flask import Flask,request,jsonify
+from flask import Flask,request,jsonify,redirect
 import boto3
 from botocore.exceptions import ClientError
 import logging
 import os
 import requests
 from face_morpher.facemorpher.morpher import morpher
-from s3_functions import download_file_from_s3,upload_file_to_s3
+from s3_functions import download_file_from_s3,upload_file_to_s3,generate_users_presigned_url
 import time
 import base64
 import json
@@ -20,6 +20,7 @@ app.url_map.strict_slashes = False
 
 REAL_BUCKET = 'com.voiladating.users2'
 CELEBS_BUCKET = 'com.voiladating.celebs'
+FREE_CELEBS_BUCKET = 'free-celebs'
 
 local_cache_dir = '/tmp'
 
@@ -40,11 +41,38 @@ def perform_morph():
     celeb_full_filename = os.path.join(user_local_dir,'celeb_detection_'+os.path.basename(celeb_key))
     download_file_from_s3(filename=user_full_filename,object_name=user_detection_key,bucket=REAL_BUCKET)
     download_file_from_s3(filename=celeb_full_filename,object_name=celeb_key,bucket=CELEBS_BUCKET)
-    short_filename = str(time.time())+'.avi'
+    short_filename = str(time.time())+'.mp4'
     out_video_filename = os.path.join(user_local_dir, short_filename)
-    morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename)
+    morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename,background='average')
     upload_file_to_s3(file_name=out_video_filename,object_name=f'{user_id}/morph_video/{short_filename}')
     return jsonify({'status':'success','morph_filename':short_filename})
+
+@app.route('/morph/free_perform')
+def perform_free_morph():
+    user_id = request.args.get('user_id', '')
+    user_image_filename = request.args.get('user_image_filename', '')
+    detection_index = request.args.get('detection_index', '')
+    celeb_name = request.args.get('celeb_name', '')
+    celeb_filename = request.args.get('celeb_filename', '')
+    if any([x == '' for x in [user_id,user_image_filename, detection_index, celeb_name, celeb_filename]]):
+        return jsonify({'status':'bad parameters'}), 404
+    user_detection_key = os.path.join(user_id,'profile_fr_analyzed',user_image_filename,f'{detection_index}.jpg')
+    celeb_key = f'{celeb_name}/{celeb_filename}'
+    user_local_dir = os.path.join(local_cache_dir,user_id)
+    os.makedirs(user_local_dir,exist_ok=True)
+    user_full_filename = os.path.join(user_local_dir,'user_detection_'+os.path.basename(user_detection_key))
+    celeb_full_filename = os.path.join(user_local_dir,'celeb_detection_'+os.path.basename(celeb_key))
+    download_file_from_s3(filename=user_full_filename,object_name=user_detection_key,bucket=REAL_BUCKET)
+    download_file_from_s3(filename=celeb_full_filename,object_name=celeb_key,bucket=FREE_CELEBS_BUCKET)
+    short_filename = str(time.time())+'.mp4'
+    out_video_filename = os.path.join(user_local_dir, short_filename)
+    morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename,background='average')
+    upload_file_to_s3(file_name=out_video_filename,object_name=f'{user_id}/morph_video/{short_filename}')
+    return jsonify({'status':'success','morph_filename':short_filename})
+
+@app.route('/morph/get_video/<user_id>/<filename>')
+def get_video(user_id,filename):
+    return redirect(generate_users_presigned_url(aws_key=f'{user_id}/morph_video/{filename}', expiresIn=600),code=302)
 
 
 @app.route('/morph/healthcheck')

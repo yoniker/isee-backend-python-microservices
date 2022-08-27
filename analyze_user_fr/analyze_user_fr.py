@@ -1,3 +1,4 @@
+import time
 import datetime
 import os
 from enum import Enum
@@ -70,10 +71,15 @@ def get_user_analysis(user_id):
         return jsonify({'status':'couldnt locate user data'}) , 404
     faces_details = []
     groups_data = user_fr_data['groups']
+    mid_embeddings = user_fr_data.get('mid_embedding', None)
+    best_face_image_key = ''
     for group in groups_data:
         for embeddingsData in group: #type:EmbeddingsData
-            faces_details.append(embeddingsData.image_key+'/'+str(embeddingsData.detection_index))
-    return jsonify({'status':'success','faces_details':faces_details})
+            face_key = embeddingsData.image_key + '/' + str(embeddingsData.detection_index)
+            faces_details.append(face_key)
+            if all(mid_embeddings.embedding == embeddingsData.embedding):
+                best_face_image_key = face_key
+    return jsonify({'status':'success','faces_details':faces_details,'best_face':best_face_image_key})
 
     #Go to the groups' data, and get all of the info
 
@@ -213,11 +219,31 @@ In this part I will implement celeb look alike
 with open('celebs.pickle', 'rb') as f:
     all_celebs_data = pickle.load(f)
 all_celeb_embeddings = np.stack(all_celebs_data.fr_data, axis=0)
+with open('free_celebs_data.pickle', 'rb') as f:
+    free_celebs_data = pickle.load(f)
+free_celeb_embeddings = np.stack(free_celebs_data.fr_data, axis=0)
+
 
 def get_most_lookalike_celebs(embeddings, num_celebs=7):
+    t1=time.time()
     distances = np.linalg.norm(embeddings - all_celeb_embeddings, axis=1)
+    t2=time.time()
     name_distances = DataFrame({'distance': distances,'celebname': all_celebs_data.celebname})
+    t3=time.time()
     name_distances.sort_values(by=['distance'], inplace=True)
+    t4=time.time()
+    print(f'{t4 - t3},{t3 - t2},{t2 - t1}')
+    return name_distances[0:num_celebs].to_dict(orient='records')
+
+def get_most_lookalike_free_celebs(embeddings, num_celebs=7):
+    t1 = time.time()
+    distances = np.linalg.norm(embeddings - free_celeb_embeddings, axis=1)
+    t2=time.time()
+    name_distances = DataFrame({'distance': distances,'celebname': free_celebs_data.celebname})
+    t3=time.time()
+    name_distances.sort_values(by=['distance'], inplace=True)
+    t4=time.time()
+    print(f'{t4-t3},{t3-t2},{t2-t1}')
     return name_distances[0:num_celebs].to_dict(orient='records')
 
 
@@ -245,6 +271,12 @@ def get_most_lookalike_celebs_by_image(user_id, image_filename, detection_index)
     celebs_data = get_most_lookalike_celebs(embeddings=fr_data_chosen)
     return jsonify({'celebs_data':celebs_data,'status':'success'})
 
+@app.route('/analyze-user-fr/get_free_celebs_lookalike/<user_id>/<image_filename>/<detection_index>')
+def get_most_lookalike_free_celebs_by_image(user_id, image_filename, detection_index):
+    fr_data_chosen = get_analyzed_profile_fr_data(user_id=user_id,image_filename=image_filename,detection_index=detection_index)
+    celebs_data = get_most_lookalike_free_celebs(embeddings=fr_data_chosen)
+    return jsonify({'celebs_data':celebs_data,'status':'success'})
+
 @app.route('/analyze-user-fr/get_traits/<user_id>/<image_filename>/<detection_index>')
 def get_traits_by_detection(user_id, image_filename, detection_index):
     traits_data_chosen = get_analyzed_traits(user_id=user_id, image_filename=image_filename,
@@ -263,5 +295,6 @@ docker build . -t analyze_user_fr
 docker run -it -d -p20006:20006/tcp analyze_user_fr
 curl "localhost:20006/analyze-user-fr/get_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
 curl "localhost:20006/analyze-user-fr/perform_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
+curl "localhost:20006/analyze-user-fr/get_celebs_lookalike/5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0"
 curl "localhost:20006/analyze-user-fr/get_celebs_lookalike/5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0"
 '''

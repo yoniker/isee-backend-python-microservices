@@ -54,6 +54,7 @@ app.url_map.strict_slashes = False
 DUMMY_BUCKET = 'com.voiladating.dummy'
 REAL_BUCKET= 'com.voiladating.users2'
 CELEBS_BUCKET = 'com.voiladating.celebs'
+FREE_CELEBS_BUCKET = 'free-celebs'
 
 
 
@@ -69,7 +70,7 @@ os.makedirs(app.config.local_cache_dir,exist_ok=True)
 
 def generate_users_presigned_url(aws_key,bucket_name,expiresIn=300,region_name='us-east-1'):
     s3_client = boto3.client('s3', region_name=region_name)
-    url =  s3_client.generate_presigned_url(
+    url = s3_client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': aws_key},
         ExpiresIn=expiresIn)
@@ -206,6 +207,14 @@ def get_celeb_image_links(celebname):
     files_names = [x['filename'] for x in res]
     celeb_image_links = [f'celeb_image/{celebname}/{x}' for x in files_names]
     return jsonify({'celeb_image_links':celeb_image_links})
+@app.route('/user_data/free_celeb_image_links/<celebname>')
+def get_free_celeb_image_links(celebname):
+    res = app.config.aurora_client.get_free_celeb_images(celebname)
+    files_names = [x['filename'] for x in res]
+    celeb_image_links = [f'free_celeb_image/{celebname}/{x}' for x in files_names]
+    return jsonify({'celeb_image_links':celeb_image_links})
+
+
 
 @app.route('/user_data/celeb_image/<celeb_name>/<filename>')
 def get_celeb_image_url(celeb_name,filename):
@@ -213,6 +222,14 @@ def get_celeb_image_url(celeb_name,filename):
     s3_client = boto3.client('s3')
     object_key = f'{celeb_name}/{filename}'
     presigned_url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': CELEBS_BUCKET, 'Key': object_key})
+    return redirect(presigned_url, code=302)
+
+@app.route('/user_data/free_celeb_image/<celeb_name>/<filename>')
+def get_free_celeb_image_url(celeb_name,filename):
+    #/celeb_image/Jackie Chan/1.jpeg
+    s3_client = boto3.client('s3')
+    object_key = f'{celeb_name}/{filename}'
+    presigned_url = s3_client.generate_presigned_url('get_object', Params = {'Bucket': FREE_CELEBS_BUCKET, 'Key': object_key})
     return redirect(presigned_url, code=302)
 
 
@@ -582,8 +599,8 @@ def approve_user(user_id):
     send_message(user_id=user_id, data={
       ServerConsts.PushedData.PUSH_NOTIFICATION_TYPE.value : ServerConsts.PushedData.CHANGE_USER_STATUS.value,
       ServerConsts.PushedData.CHANGE_USER_KEY.value : SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value,
-      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value
-    },fcm_token=fcm_token)
+      ServerConsts.PushedData.CHANGE_USER_VALUE.value: SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value,
+    },fcm_token=fcm_token,notification_title='Welcome to Voilà',notification_body='Congratulations! Your profile was reviewed and approved by us. Enjoy the world\'s best Dating App')
     return jsonify({'status':'success'})
 
 @app.route('/user_data/disapprove_user/<user_id>')

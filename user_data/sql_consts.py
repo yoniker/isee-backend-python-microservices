@@ -15,6 +15,8 @@ class SQL_CONSTS:
         DECISIONS = 'decisions'
         CELEBS_FR_DATA = 'celebs_fr_data'
         CELEBS_S3_IMAGES = 'celebs_s3_images'
+        FREE_CELEBS_S3_IMAGES = 'free_celebs_s3_images'
+        FREE_CELEBS_FR_DATA = 'free_celebs_fr_data'
         MATCHES = 'matches'
         CONVERSATIONS = 'conversations'
         MESSAGES = 'messages'

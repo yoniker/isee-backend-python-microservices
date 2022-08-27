@@ -491,8 +491,8 @@ class PostgresClient:
 
     def get_unanalyzed_fr_images_by_uid(self, user_id):
         sql_query = f'SELECT * from {SQL_CONSTS.TablesNames.IMAGES.value} WHERE '\
-                    f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_FR_IMAGE_TS.value} is null'
-        data = (user_id,)
+                    f'{SQL_CONSTS.ImageColumns.USER_ID}=%s and {SQL_CONSTS.ImageColumns.ANALYZED_FR_IMAGE_TS.value} is null and {SQL_CONSTS.ImageColumns.TYPE.value}=%s '
+        data = (user_id,SQL_CONSTS.ImagesConsts.IN_PROFILE_TYPE.value)
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
                 cursor.execute(sql_query, data)

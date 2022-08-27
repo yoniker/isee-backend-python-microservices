@@ -8,7 +8,7 @@ REAL_BUCKET = 'com.voiladating.users2'
 CELEBS_BUCKET = 'com.voiladating.celebs'
 
 
-def generate_users_presigned_url(aws_key, bucket_name, expiresIn=60, region_name='us-east-1'):
+def generate_users_presigned_url(aws_key, bucket_name=REAL_BUCKET, expiresIn=60, region_name='us-east-1'):
     s3_client = boto3.client('s3', region_name=region_name)
     return s3_client.generate_presigned_url(
         ClientMethod='get_object',

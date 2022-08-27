@@ -2,6 +2,7 @@ FROM pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel
 EXPOSE 20009/tcp
 RUN apt-get update --allow-insecure-repositories
 RUN apt-get install ffmpeg libsm6 libxext6  -y
+RUN apt-get install ffmpeg
 RUN pip install flask opencv-python
 RUN pip3 install cmake boto3 ipdb
 WORKDIR /home/morph_service

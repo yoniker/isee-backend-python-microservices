@@ -238,6 +238,16 @@ class PostgresClient:
                 results = [dict(result) for result in results]
                 return results
 
+    def get_free_celeb_images(self,celeb_name):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                sql_cmd = f'select * from {SQL_CONSTS.TablesNames.FREE_CELEBS_S3_IMAGES.value} where {SQL_CONSTS.CELEBS_S3_ImagesColumns.CELEBNAME.value}=%s order by priority asc'
+                data=(celeb_name,)
+                cursor.execute(sql_cmd,data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
     def update_user_data(self, user_data):
         return self._update_table_by_dict(table_name=SQL_CONSTS.TablesNames.USERS.value, data=user_data,primary_key=SQL_CONSTS.UsersColumns.FIREBASE_UID)
 
