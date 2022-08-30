@@ -108,6 +108,10 @@ def post_user_settings(userid):
             user_data[SQL_CONSTS.UsersColumns.USER_BIRTHDAY.value]) > 0:
         user_data[SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value] = calculate_birthday_timestamp(
             user_data[SQL_CONSTS.UsersColumns.USER_BIRTHDAY.value])
+    if user_data.get(SQL_CONSTS.UsersColumns.USER_GENDER.value,'') == SQL_CONSTS.DummyUsersGender.MALE.value:
+        user_data[SQL_CONSTS.UsersColumns.GENDER_INDEX.value] = 1
+    elif user_data.get(SQL_CONSTS.UsersColumns.USER_GENDER.value,'') == SQL_CONSTS.DummyUsersGender.FEMALE.value:
+        user_data[SQL_CONSTS.UsersColumns.GENDER_INDEX.value] = 0
     app.config.aurora_client.update_user_data(user_data)
     return jsonify(
         {'status': 'success', SQL_CONSTS.UsersColumns.LOCATION_DESCRIPTION.value: location_description})
@@ -408,6 +412,7 @@ def unmatch_users(user_id1,user_id2):
 @app.route('/user_data/decision/<userid>',methods=['POST'])
 def post_user_decision(userid):
     #TODO Auth
+    #TODO make sure that decision_data's decider is the same as the one at userid's decider
     decision_data = request.get_json(force=True)
     decision_data.update({SQL_CONSTS.DecisionsColumns.DECISION_TIMESTAMP:time.time()})
     app.config.aurora_client.post_decision(decision_data)
@@ -417,7 +422,7 @@ def post_user_decision(userid):
     if decision in [SQL_CONSTS.DecisionsTypes.LIKE.value,SQL_CONSTS.DecisionsTypes.SUPERLIKE.value]:
         other_user_decision = app.config.aurora_client.get_decision(decider=other_user_id,decidee = userid)
         if other_user_decision is not None and other_user_decision.get(SQL_CONSTS.DecisionsColumns.DECISION,SQL_CONSTS.DecisionsTypes.NOPE.value) in [SQL_CONSTS.DecisionsTypes.LIKE.value,SQL_CONSTS.DecisionsTypes.SUPERLIKE.value]:
-            match_users(userid1=userid,userid2=other_user_id)
+            match_users(user_id1=userid,user_id2=other_user_id)
     return jsonify({'status':'success'})
 
 @app.route('/user_data/clear_likes/<userid>')
@@ -690,6 +695,7 @@ aws s3 presign s3://com.voiladating.users2/5EX44AtZ5cXxW1O12G3tByRcC012/custom_i
 #PGPASSWORD=dordordor nohup psql -h voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com -U yoni dummy_users < dummy_users_images.dump &
 
 #curl "localhost:20002/matches/kRlw3NNKk5aavKfYEupXroBcfYp1"
+
 
 
 

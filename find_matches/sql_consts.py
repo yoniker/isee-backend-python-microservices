@@ -19,6 +19,7 @@ class SQL_CONSTS:
         CONVERSATIONS = 'conversations'
         MESSAGES = 'messages'
         RECEIPTS = 'receipts'
+        FREE_CELEBS_FR_DATA = 'free_celebs_fr_data'
         
 
 

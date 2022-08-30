@@ -112,6 +112,7 @@ class SQL_CONSTS:
         REGISTRATION_STATUS = 'registration_status'
         IS_TEST_USER = 'is_test_user'
         HAS_FR_DATA = 'has_fr_data'
+        GENDER_INDEX = 'gender_index'
 
         
     class REGISTRATION_STATUS_TYPES(str, Enum):

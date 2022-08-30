@@ -377,7 +377,7 @@ class PostgresClient:
     def get_celeb_embeddings(self,celeb_name):
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.CELEBS_FR_DATA.value} where {SQL_CONSTS.CELEBS_FR_DataColumn.CELEBNAME.value}=%s', (celeb_name,))
+                cursor.execute(f'select * from {SQL_CONSTS.TablesNames.FREE_CELEBS_FR_DATA.value} where {SQL_CONSTS.CELEBS_FR_DataColumn.CELEBNAME.value}=%s', (celeb_name,))
                 results = cursor.fetchall()
         if len(results) ==0:
             return []
