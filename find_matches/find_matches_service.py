@@ -43,7 +43,6 @@ DUMMY_COLUMNS_TO_REAL_NAMES = {
     'wantchildren':SQL_CONSTS.UsersColumns.CHILDREN.value,
     'description':SQL_CONSTS.UsersColumns.USER_DESCRIPTION.value,
     'body':SQL_CONSTS.UsersColumns.FITNESS.value,
-    'searchtype':SQL_CONSTS.UsersColumns.RELATIONSHIP_TYPE.value
     
 }
 
@@ -154,6 +153,30 @@ def get_dummy_user_matches_from_haifa():
     user_settings = request.get_json(force = True)
     return get_user_matches(uid=user_settings[SQL_CONSTS.UsersColumns.FIREBASE_UID.value],user_settings=user_settings)
 
+@app.route('/matches/admin_matches')
+def get_admin_matches():
+    lat,lon = 43.711711711711715, -79.39309683809819 #Toronto
+    current_user_matches = app.config.aurora_client.get_admin_matches()
+    current_user_matches.replace({np.nan: None}, inplace=True)
+    current_user_matches['age'] = current_user_matches[SQL_CONSTS.UsersColumns.USER_BIRTHDAY_TIMESTAMP.value].apply(
+       lambda x: datetime.fromtimestamp(x) if x is not None else x).apply(
+        lambda x: partial(relativedelta, datetime.now())(x) if x is not pd.NaT else x).apply(lambda x: x.years if x is not pd.NaT else x)
+    current_user_matches = current_user_matches.sample(
+        min(ServerConsts.LIMITS.MAX_MATCHES_PER_USER_QUERY.value, len(current_user_matches)))
+    if 'fr_data' in current_user_matches:  # we don't want to save the embeddings in redis because 1.not serialable 2.memory
+        current_user_matches.drop(columns=['fr_data'], inplace=True)
+    if len(current_user_matches) > 0:
+        current_user_matches['location_distance'] = current_user_matches.apply(
+            partial(get_exact_distance, user_location=(lat, lon)), axis=1)
+    current_user_matches.drop(columns=['latitude', 'longitude'], inplace=True)
+    current_user_matches = current_user_matches.where(pd.notnull(current_user_matches), None)
+    current_user_matches = current_user_matches.to_dict(orient='records')
+    current_user_matches = get_real_users_images(current_user_matches)
+    status = ServerConsts.MatchesStatus.FOUND.value if len(
+        current_user_matches) > 0 else ServerConsts.MatchesStatus.NOT_FOUND.value  # TODO check for other statuses.
+    return jsonify({
+                    ServerConsts.MatchesDataNames.MATCHES.value: current_user_matches,
+                    ServerConsts.MatchesDataNames.STATUS.value: status})
 
 @app.route('/matches/<uid>')
 def get_user_matches(uid,user_settings=None):

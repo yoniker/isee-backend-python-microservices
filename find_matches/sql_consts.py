@@ -111,10 +111,13 @@ class SQL_CONSTS:
         TEXT_SEARCH = 'text_search'
         REGISTRATION_STATUS = 'registration_status'
         GENDER_INDEX  = 'gender_index'
-        
-    class REGISTRATION_STATUS_TYPES(str,Enum):
-        REGISTERED = 'registered'
+
+    class REGISTRATION_STATUS_TYPES(str, Enum):
+        NOT_REGISTERED = 'notRegistered'
+        REGISTERED_NOT_APPROVED = 'registeredNotApproved'
+        REGISTERED_APPROVED = 'registeredApproved'
         DELETED = 'deleted'
+
         
     class ADDED_USER_COLUMNS(str,Enum):
         AGE = 'age'

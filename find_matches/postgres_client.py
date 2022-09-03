@@ -325,6 +325,16 @@ class PostgresClient:
                 data = sqlio.read_sql_query(full_query, connection)
                 return data
 
+    def get_admin_matches(self):
+        query = f'select * from {SQL_CONSTS.TablesNames.USERS.value} where ({SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value} = %s) or ({SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value} is null)'
+        data=(SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_NOT_APPROVED,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                full_query = cursor.mogrify(query,data)
+                print(full_query)
+                data = sqlio.read_sql_query(full_query, connection)
+                return data
+
     def get_real_matches(self, lat=None, lon=None, radius_in_kms=None, min_age=None, max_age=None, gender_index=None, uid=None, need_fr_data=False, text_search ='', max_num_users=1000):
         
         location_based_search = all([x is not None for x in [lat, lon, radius_in_kms]])
@@ -353,6 +363,8 @@ class PostgresClient:
             query_args += [uid]
             query += f' and {SQL_CONSTS.UsersColumns.FIREBASE_UID.value}<>%s' #Not match with oneself
             query_args += [uid]
+        query += f' and {SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value} = %s '
+        query_args += [f'{SQL_CONSTS.REGISTRATION_STATUS_TYPES.REGISTERED_APPROVED.value}']
         query += f' order by random() limit {max_num_users}'
         if need_fr_data and False: #TODO implement
             query = f'with selected_users as ({query}) ' \
