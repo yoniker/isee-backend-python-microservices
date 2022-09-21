@@ -94,6 +94,8 @@ def redirect_user_fr_image(user_id,image_name,detection_index):
 def analyze_user(user_id): 
     #Step 1: Get the images for which we need to detect and fr
     user_images_to_analyze = app.config.postgres_client.get_unanalyzed_fr_images_by_uid(user_id=user_id)
+    in_profile_images_data = app.config.postgres_client.get_user_profile_images(user_id=user_id)
+    in_profile_images_filenames = [x['filename'] for x in in_profile_images_data]
     all_fr_data = dict()
     all_traits_data = dict()
     user_fr_data_s3_key = os.path.join(s3_user_fr_dir(user_id=user_id), f'{user_id}.pickle')
@@ -106,6 +108,9 @@ def analyze_user(user_id):
                 all_data = pickle.load(f)
                 all_fr_data = all_data['fr']
                 all_traits_data = all_data['traits']
+                #Let's remove the files which are no longer part of the user's profile images
+                all_fr_data = {k: all_fr_data[k] for k in all_fr_data.keys() if k in in_profile_images_filenames}
+                all_traits_data = {k: all_traits_data[k] for k in all_traits_data.keys() if k in in_profile_images_filenames}
         except:
             pass
     for user_image_to_analyze in user_images_to_analyze:
@@ -156,6 +161,7 @@ def analyze_user(user_id):
         all_traits_data[aws_key] = detections_traits_data
         print(f'done with the file {os.path.basename(aws_key)}')
     all_data = {'fr':all_fr_data,'traits':all_traits_data}
+    pass
     with open(data_user_filename, 'wb') as handle:
         pickle.dump(all_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
     upload_file_to_s3(file_name=data_user_filename,bucket=REAL_BUCKET,object_name=user_fr_data_s3_key)
@@ -165,10 +171,8 @@ def analyze_user(user_id):
                                                           timestamp=datetime.now().timestamp()
                                                           )
     #At this point we have the info on all analyzed images. Let's now analyze only the images which are 'in_profile'.
-    in_profile_images_data = app.config.postgres_client.get_user_profile_images(user_id=user_id)
-    if len(in_profile_images_data) == 0 :
-        return jsonify({'status':'User images don\'t exist'})
-    in_profile_images_filenames = [in_profile_image['filename'] for in_profile_image in in_profile_images_data]
+    # if len(in_profile_images_data) == 0 :
+    #     return jsonify({'status':'User images don\'t exist'})
     #sift only the profile images from the images data. If a profile image is not included in the data,restart the process
     in_profile_images_fr_data = {k:v for k,v in all_fr_data.items() if k in in_profile_images_filenames}
     if len(in_profile_images_fr_data) != len(in_profile_images_filenames):
@@ -294,7 +298,7 @@ if __name__ == '__main__':
 docker build . -t analyze_user_fr
 docker run -it -d -p20006:20006/tcp analyze_user_fr
 curl "localhost:20006/analyze-user-fr/get_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
-curl "localhost:20006/analyze-user-fr/perform_analysis/5EX44AtZ5cXxW1O12G3tByRcC012"
+curl "localhost:20006/analyze-user-fr/perform_analysis/analyse_me_d028820103a9e7c4"
 curl "localhost:20006/analyze-user-fr/get_celebs_lookalike/5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0"
 curl "localhost:20006/analyze-user-fr/get_celebs_lookalike/5EX44AtZ5cXxW1O12G3tByRcC012/1659217900.4540095_5EX44AtZ5cXxW1O12G3tByRcC012_92715.jpg/0"
 '''
