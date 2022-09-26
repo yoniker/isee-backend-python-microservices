@@ -89,3 +89,8 @@ if __name__ == '__main__':
 #docker run -d -it morph:latest
 #python facemorpher/morpher.py --src=l.jpg --dest=b.jpg  --out_video=out.avi
 #curl localhost:20009/morph/perform?user_id=5EX44AtZ5cXxW1O12G3tByRcC012&user_image_filename=1645896125.589132_5EX44AtZ5cXxW1O12G3tByRcC012_61388.jpg&detection_index=0&celeb_name=Ailee&celeb_filename=1.png
+
+
+#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227103.436022_analyse_me_d7e7696bdadb745d_98128.jpg&detection_index=0&celeb_name=Courtney+Ford&celeb_filename=0.jpg
+#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Devin+Nunes&celeb_filename=0.jpg
+#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Ian+Whyte+%28actor%29&celeb_filename=0.jpg
