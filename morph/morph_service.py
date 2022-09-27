@@ -41,7 +41,7 @@ def perform_morph():
     celeb_full_filename = os.path.join(user_local_dir,'celeb_detection_'+os.path.basename(celeb_key))
     download_file_from_s3(filename=user_full_filename,object_name=user_detection_key,bucket=REAL_BUCKET)
     download_file_from_s3(filename=celeb_full_filename,object_name=celeb_key,bucket=CELEBS_BUCKET)
-    short_filename = str(time.time())+'.mp4'
+    short_filename = str(time.time())+'.gif'
     out_video_filename = os.path.join(user_local_dir, short_filename)
     morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename,background='average')
     upload_file_to_s3(file_name=out_video_filename,object_name=f'{user_id}/morph_video/{short_filename}')
@@ -54,6 +54,8 @@ def perform_free_morph():
     detection_index = request.args.get('detection_index', '')
     celeb_name = request.args.get('celeb_name', '')
     celeb_filename = request.args.get('celeb_filename', '')
+    height = int(request.args.get('height','400'))
+    width = int(request.args.get('width', '400'))
     if any([x == '' for x in [user_id,user_image_filename, detection_index, celeb_name, celeb_filename]]):
         return jsonify({'status':'bad parameters'}), 404
     user_detection_key = os.path.join(user_id,'profile_fr_analyzed',user_image_filename,f'{detection_index}.jpg')
@@ -64,9 +66,9 @@ def perform_free_morph():
     celeb_full_filename = os.path.join(user_local_dir,'celeb_detection_'+os.path.basename(celeb_key))
     download_file_from_s3(filename=user_full_filename,object_name=user_detection_key,bucket=REAL_BUCKET)
     download_file_from_s3(filename=celeb_full_filename,object_name=celeb_key,bucket=FREE_CELEBS_BUCKET)
-    short_filename = str(time.time())+'.mp4'
+    short_filename = str(time.time())+'.gif'
     out_video_filename = os.path.join(user_local_dir, short_filename)
-    morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename,background='average')
+    morpher(imgpaths=[user_full_filename,celeb_full_filename],out_video=out_video_filename,background='average',height=height,width=width)
     upload_file_to_s3(file_name=out_video_filename,object_name=f'{user_id}/morph_video/{short_filename}')
     return jsonify({'status':'success','morph_filename':short_filename})
 
@@ -91,6 +93,6 @@ if __name__ == '__main__':
 #curl localhost:20009/morph/perform?user_id=5EX44AtZ5cXxW1O12G3tByRcC012&user_image_filename=1645896125.589132_5EX44AtZ5cXxW1O12G3tByRcC012_61388.jpg&detection_index=0&celeb_name=Ailee&celeb_filename=1.png
 
 
-#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227103.436022_analyse_me_d7e7696bdadb745d_98128.jpg&detection_index=0&celeb_name=Courtney+Ford&celeb_filename=0.jpg
-#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Devin+Nunes&celeb_filename=0.jpg
-#https://services.voilaserver.com/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Ian+Whyte+%28actor%29&celeb_filename=0.jpg
+#http://localhost:20009/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227103.436022_analyse_me_d7e7696bdadb745d_98128.jpg&detection_index=0&celeb_name=Courtney+Ford&celeb_filename=0.jpg
+#http://localhost:20009/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Devin+Nunes&celeb_filename=0.jpg
+#http://localhost:20009/morph/free_perform?user_id=analyse_me_d7e7696bdadb745d&user_image_filename=1664227110.2872126_analyse_me_d7e7696bdadb745d_83501.jpg&detection_index=1&celeb_name=Ian+Whyte+%28actor%29&celeb_filename=0.jpg

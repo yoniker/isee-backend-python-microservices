@@ -3,7 +3,7 @@ EXPOSE 20009/tcp
 RUN apt-get update --allow-insecure-repositories
 RUN apt-get install ffmpeg libsm6 libxext6  -y
 RUN apt-get install ffmpeg
-RUN pip install flask opencv-python
+RUN pip install flask opencv-python imageio
 RUN pip3 install cmake boto3 ipdb
 WORKDIR /home/morph_service
 COPY /face_morpher /home/morph_service/face_morpher
@@ -13,8 +13,8 @@ RUN mkdir -p /opt/conda/lib/python3.7/site-packages/facemorpher-5.2.dev0-py3.7.e
 COPY shape_predictor_68_face_landmarks.dat /opt/conda/lib/python3.7/site-packages/facemorpher-5.2.dev0-py3.7.egg/data
 COPY s3_functions.py /home/morph_service
 COPY morph_service.py /home/morph_service
-ENV AWS_ACCESS_KEY_ID=AKIAVIASWTZFO7GHDZF4
-ENV AWS_SECRET_ACCESS_KEY=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
+# ENV AWS_ACCESS_KEY_ID=AKIAVIASWTZFO7GHDZF4
+# ENV AWS_SECRET_ACCESS_KEY=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
 ENTRYPOINT ["python","-u","morph_service.py"]
 # ENTRYPOINT ["tail"]
 # CMD ["-f","/dev/null"]
