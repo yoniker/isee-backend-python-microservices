@@ -17,6 +17,13 @@ def validate_token(token:str):
     except:
         print('error decrypting token. returning False')
         return False
-
-def encrypt(data:dict):
-    return fernet.encrypt(json.dumps(data).encode('utf-8')).decode('utf-8')
+def create_token(purchase_token,subscription_id):
+    expire_token_time = time.time() + 60 * 2  # 60*60*24
+    iSee_data = {
+            'expiry':expire_token_time, #expire in 24 hours
+            'premium':True,
+            'purchase_token':purchase_token,
+            'subscription_id':subscription_id
+        }
+    iSee_token = fernet.encrypt(json.dumps(iSee_data).encode('utf-8')).decode('utf-8')
+    return iSee_token
