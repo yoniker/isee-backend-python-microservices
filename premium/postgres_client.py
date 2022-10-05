@@ -10,7 +10,7 @@ import time
 
 
 class PostgresClient:
-    def __init__(self,minconn=20,maxconn=200,database='real_users',
+    def __init__(self,minconn=1,maxconn=50,database='real_users',
                                                          user='yoni',
                                                          password='dor',
                                                          host='localhost'):

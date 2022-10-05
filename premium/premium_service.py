@@ -34,12 +34,12 @@ HAIFA_ROUTES = [
 ]
 
 MAX_USAGE_PER_DAY = {
-    'celebs_lookalike':8,
-     'traits' : 8,
-    'morph':8,
-     'cartoon':8,
-    'dream_from_image':8,
-    'dream_from_prompt':8,
+    'celebs_lookalike':4,
+     'traits' : 4,
+    'morph':4,
+     'cartoon':4,
+    'dream_from_image':4,
+    'dream_from_prompt':4,
 
 }
 
@@ -80,12 +80,12 @@ def should_allow(route_description,is_premium,user_history_in_route):
     user_history_in_route = [x for x in user_history_in_route if x>last_24_hours]
     user_history_in_route.sort()
     limits_current_route = MAX_USAGE_PER_DAY.get(route_description, 10)
-    if len(user_history_in_route)<=limits_current_route:
+    if len(user_history_in_route)<limits_current_route:
         allow = True
         next_usage = None
     else:
         allow = False
-        next_usage = user_history_in_route[-limits_current_route]
+        next_usage = user_history_in_route[-limits_current_route] + 60*60*24
     return allow, {'next_usage':next_usage,'max_in_24_hours':limits_current_route,'actual_usage_24_hours':len(user_history_in_route)}
 
 
@@ -95,6 +95,22 @@ def should_allow(route_description,is_premium,user_history_in_route):
 @app.route('/isee/healthcheck', methods=['GET'])
 def say_healthy():
     return jsonify({'status':'isee gateway is healthy'})
+
+
+@app.route('/isee/delete_history')
+def remove_user_history():
+    user_id = request.headers.get('isee_user_id', 'no_user_id')
+    new_user_data = {
+        SQL_CONSTS.UsageColumns.USER_ID.value: user_id,
+        SQL_CONSTS.UsageColumns.MORPH.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.TRAITS.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.CARTOON.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.DREAM_FROM_PROMPT.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.DREAM_FROM_IMAGE.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.CELEBS_LOOKALIKE.value: json.dumps([]),
+    }
+    app.config.aurora_client.update_usage_data(new_user_data)
+    return jsonify({'status':'success'})
 
 @app.route('/create_token', methods=['POST']) #This endpoint is valid only for Android
 def create_token_route():
@@ -154,7 +170,8 @@ def catch_all(path):
         #TODO check here if proposed new usage times is in-line with current policy
         allow,limitation_data = should_allow(route_description=relevant_route_key,is_premium=valid_token,user_history_in_route=proposed_new_usage_times[:-1])
         if not allow:
-            return jsonify(limitation_data.update({'status':'used_daily_limit'})),403
+            limitation_data.update({'status': 'used_daily_limit'})
+            return jsonify(limitation_data),403
         new_user_data = {
             SQL_CONSTS.UsageColumns.USER_ID.value:user_id,
             relevant_route_key:json.dumps(proposed_new_usage_times)
@@ -189,4 +206,4 @@ def catch_all(path):
 
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20010,host="0.0.0.0",debug=False,ssl_context=('/home/premium_service/keys/selfsigned.crt', '/home/premium_service/keys/selfsigned.key'))#('/home/premium_service/keys/dordating.crt', '/home/premium_service/keys/dordating.key'))
+   app.run(threaded=True,port=20010,host="0.0.0.0",debug=False)#ssl_context=('/home/premium_service/keys/selfsigned.crt', '/home/premium_service/keys/selfsigned.key'))#('/home/premium_service/keys/dordating.crt', '/home/premium_service/keys/dordating.key'))
