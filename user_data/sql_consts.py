@@ -22,6 +22,7 @@ class SQL_CONSTS:
         MESSAGES = 'messages'
         RECEIPTS = 'receipts'
         USERS_FR_DATA = 'users_fr_data'
+        GALLERY_IMAGES = 'gallery_images'
 
     class CELEBS_FR_DataColumn(str,Enum):
         CELEBNAME = 'celebname'
@@ -225,6 +226,15 @@ class SQL_CONSTS:
     class UserHasFr(str, Enum):
         TRUE = 'true'
         FALSE = 'false'
+
+    class GalleryColumns(str, Enum):
+        USER_ID = 'user_id'
+        BUCKET_NAME = 'bucket_name'
+        PRIORITY = 'priority'
+        TYPE = 'type'
+        FILENAME = 'filename'
+        PRIMARY_KEY = f'({USER_ID},{FILENAME})'
+        STATUS  = 'status'
         
 
 

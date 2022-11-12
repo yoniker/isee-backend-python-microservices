@@ -29,6 +29,8 @@ from firebase_admin import auth
 import firebase_admin
 import concurrent.futures
 import requests
+from collections import defaultdict
+from PIL import Image
 
 user_analyze_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
@@ -53,6 +55,7 @@ app.url_map.strict_slashes = False
 
 DUMMY_BUCKET = 'com.voiladating.dummy'
 REAL_BUCKET= 'com.voiladating.users2'
+ISEE_BUCKET = 'com.voiladating.isee'
 CELEBS_BUCKET = 'com.voiladating.celebs'
 FREE_CELEBS_BUCKET = 'free-celebs'
 
@@ -134,6 +137,25 @@ def upload_file_to_s3(file_name, bucket=REAL_BUCKET, object_name=None):
     s3_client = boto3.client('s3')
     try:
         response = s3_client.upload_file(file_name, bucket, object_name)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+
+def delete_from_s3(bucket=ISEE_BUCKET, object_key=None):
+    """Upload a file to an S3 bucket
+
+    :param file_name: File to upload
+    :param bucket: Bucket to upload to
+    :param object_key: S3 object name. If not specified then file_name is used
+    :return: True if file was uploaded, else False
+    """
+
+    # Upload the file
+    s3_client = boto3.client('s3')
+    try:
+        response = s3_client.delete_object(Bucket=bucket, Key=object_key)
     except ClientError as e:
         logging.error(e)
         return False
@@ -243,6 +265,7 @@ def redirect_to_aws_real(user_id,filename):
     url = generate_users_presigned_url(aws_key=aws_key,bucket_name=REAL_BUCKET,expiresIn=300)
     return redirect(url, code=302)
 
+
 @app.route('/user_data/upload_profile_image/<user_id>',methods=['POST'])
 def upload_profile_image(user_id):
     # TODO Auth
@@ -263,7 +286,7 @@ def upload_profile_image(user_id):
     # Step 3.Delete the file from local cache
     os.remove(full_file_uploaded_path)
     user_analyze_pool.submit(requests.get,f'https://services.voilaserver.com/analyze-user-fr/perform_analysis/{user_id}')
-    return jsonify({'status':'success','image_url':'profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
+    return jsonify({'status':'success','image_url':'user_data/profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
 
 
 @app.route('/user_data/profile_images/get_urls/<user_id>')
@@ -272,6 +295,68 @@ def get_user_image_urls(user_id):
     user_images_details = app.config.aurora_client.get_user_profile_images(user_id=user_id)
     user_images_links = ['user_data/profile_images/real/'+x['filename'] for x in user_images_details]
     return jsonify(user_images_links)
+
+"""
+In this section there will be the functions which are specific only to iSee
+"""
+@app.route('/user_data/upload_isee_gallery/<user_id>',methods=['POST'])
+def upload_gallery_image(user_id):
+    # TODO Auth
+    args = request.args
+    gallery_type = args.get('album_type', default='gallery')
+    file_extension = request.files["file"].filename.split('.')[-1]
+    file_extension = 'jpg' if file_extension!='gif' else 'gif' #TODO support more file extensions?
+    full_file_uploaded_path = app.config.local_cache_dir + f"/{time.time()}_{user_id}_{random.randint(0,100000)}.{file_extension}"
+    short_filename = os.path.basename(full_file_uploaded_path)
+    object_key = f'{user_id}/{gallery_type}/{short_filename}'
+    request.files["file"].save(full_file_uploaded_path)
+    if file_extension == 'jpg':
+        try:
+            print('going to try and save with PIL')
+            raw_image = Image.open(full_file_uploaded_path)
+            raw_image.save(full_file_uploaded_path) #The format is determined from file extension
+        except:
+            return jsonify({'status':'couldnt read data as image file'}) ,400
+     #TODO verify file type,size etc
+    # Step 1:Save the file in AWS in the proper location (<userid/filename.jpg>)
+    upload_file_to_s3(full_file_uploaded_path, bucket=ISEE_BUCKET, object_name=object_key)
+    # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
+    upload_data= {SQL_CONSTS.GalleryColumns.TYPE.value: gallery_type,
+    SQL_CONSTS.GalleryColumns.BUCKET_NAME.value:ISEE_BUCKET,
+    SQL_CONSTS.GalleryColumns.FILENAME.value:object_key,
+    SQL_CONSTS.GalleryColumns.USER_ID.value:user_id,
+    }
+    app.config.aurora_client.insert_new_gallery_image(upload_data=upload_data)
+    # Step 3.Delete the file from local cache
+    os.remove(full_file_uploaded_path)
+    return jsonify({'status':'success','image_url':f'user_data/gallery_images/'+upload_data[SQL_CONSTS.GalleryColumns.FILENAME.value]})
+
+@app.route('/user_data/gallery_images/<user_id>/<gallery_type>/<filename>')
+def redirect_gallery_to_aws(user_id,gallery_type,filename):
+    aws_key = f'{user_id}/{gallery_type}/{filename}'
+    url = generate_users_presigned_url(aws_key=aws_key,bucket_name=ISEE_BUCKET,expiresIn=300)
+    return redirect(url, code=302)
+
+@app.route('/user_data/gallery_images/get_urls/<user_id>')
+def get_user_gallery_image_urls(user_id):
+    user_images_details = app.config.aurora_client.get_user_gallery_images(user_id=user_id)
+    links_by_gallery = defaultdict(list)
+    for user_image_details in user_images_details:
+        links_by_gallery[user_image_details[SQL_CONSTS.GalleryColumns.TYPE.value]].append('user_data/gallery_images/'+user_image_details['filename'])
+    links_by_gallery = dict(links_by_gallery)
+    return jsonify(links_by_gallery)
+
+@app.route('/user_data/gallery_images/delete/<user_id>',methods=['POST'])
+
+def delete_gallery_image(user_id):
+    #a typical url is user_data/gallery_images/analyse_me_d678f8d79aa52b93bd95c83f1615b3d4bd008261198fb40898b420bf4f2ebfc0/DreamArt/1668280908.5454662_analyse_me_d678f8d79aa52b93bd95c83f1615b3d4bd008261198fb40898b420bf4f2ebfc0_71517.jpg
+    #TODO Auth
+    gallery_image_prefix = 'user_data/gallery_images/'
+    file_key = request.get_json(force = True)['file_url'][len(gallery_image_prefix):]
+    #file key now is <user id>/<gallery name>/<file name>
+    app.config.aurora_client.delete_gallery_image(image_key=file_key,user_id=user_id)
+    delete_from_s3(bucket=ISEE_BUCKET,object_key=file_key)
+    return jsonify({'status':'success'})
 
 #user_data/dummy/153367418/153367418.2.jpg
 @app.route('/user_data/dummy/<user_id>/<filename>')
@@ -323,7 +408,7 @@ def delete_profile_image(user_id):
     profile_image_prefix = 'user_data/profile_images/real/'
     file_key = request.get_json(force = True)['file_url'][len(profile_image_prefix):]
     #TODO make sure that the user refers to his own files
-    app.config.aurora_client.delete_image(image_key=file_key)
+    app.config.aurora_client.delete_profile_image(image_key=file_key)
     #TODO in the future,remove it after some time from s3. For now keep it, to make other users experience better in case they already have the link to this image somewhere
     user_analyze_pool.submit(requests.get,
                              f'https://services.voilaserver.com/analyze-user-fr/perform_analysis/{user_id}')
@@ -344,8 +429,7 @@ def send_message(user_id,data,fcm_token=None,notification_title=None,notificatio
         })
 
 
-
-def update_match(user_id1,user_id2,match_new_status):
+def update_match(user_id1,user_id2,match_new_status,silent_update_on_match = False):
     current_time = time.time()
     match_data = {
         SQL_CONSTS.MatchColumns.TIMESTAMP_CREATED.value: current_time,
@@ -358,8 +442,8 @@ def update_match(user_id1,user_id2,match_new_status):
     user1 = app.config.aurora_client.get_user_by_id(user_id=user_id1)
     user2 = app.config.aurora_client.get_user_by_id(user_id=user_id2)
     if match_new_status == SQL_CONSTS.MatchConsts.ACTIVE_MATCH.value:  # It's a new match
-        data = {'push_notification_type': 'new_match'}
-        send_notification = True
+        data = {'push_notification_type': 'new_match' if not silent_update_on_match else 'silent_new_match'}
+        send_notification = not silent_update_on_match
     else:
         data = {'push_notification_type': 'match_info'}
         send_notification = False
@@ -406,8 +490,13 @@ def unmatch_users(user_id1,user_id2):
     update_match(user_id1=user_id1, user_id2=user_id2,
         match_new_status=SQL_CONSTS.MatchConsts.CANCELLED_MATCH.value)
     return jsonify({'result': 'success', 'action': 'unmatch'})
-
-
+@app.route('/user_data/silent_match/<user_id1>/<user_id2>',methods=['GET'])
+def silent_match_users(user_id1,user_id2):
+    #TODO auth
+    #TODO check that one of the uids are of an admin
+    update_match(user_id1=user_id1, user_id2=user_id2,
+        match_new_status=SQL_CONSTS.MatchConsts.ACTIVE_MATCH.value,silent_update_on_match=True)
+    return jsonify({'result': 'success', 'action': 'match'})
 
 @app.route('/user_data/decision/<userid>',methods=['POST'])
 def post_user_decision(userid):
@@ -465,9 +554,9 @@ def post_message(conversation_id, creator_id, content,sender_epoch_time):
 
 
 @app.route('/user_data/send_message/<user_id>', methods=['POST'])
-def start_conversation(user_id):
+def start_conversation(user_id,message_data=None):
     # TODO: check if userid matches the one in dict, add some security layer
-    message_data = request.get_json(force=True)
+    message_data = request.get_json(force=True) if message_data is None else message_data
     other_user_id = message_data['other_user_id']
     message_content = message_data['message_content']
     sender_epoch_time = message_data['sender_epoch_time']
@@ -666,7 +755,7 @@ def delete_account(user_id):
     return jsonify({'status':'success'})
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20003,host="0.0.0.0",debug=False)
+   app.run(threaded=True,port=20003,host="0.0.0.0",debug=False,ssl_context=('keys/selfsigned.crt', 'keys/selfsigned.key'))
 
 
 

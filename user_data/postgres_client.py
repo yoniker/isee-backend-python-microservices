@@ -176,6 +176,63 @@ class PostgresClient:
             with connection.cursor() as cursor:
                 cursor.execute(sql_cmd, data)
 
+    def insert_new_gallery_image(self,upload_data):
+        '''
+        Have to have a special insert command as the priority has to be max of current priority+1.
+        Raw query:
+        insert into images(user_id,bucket_name,filename,type,priority) values ('d1','d1','d1','d1',(select coalesce(max(priority), 0)+1 from images where user_id='5EX44AtZ5cXxW1O12G3tByRcC012'))
+        :param upload_data:
+        :return:
+        '''
+        sql_cmd = f'INSERT INTO {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value} ('\
+                  f'{SQL_CONSTS.GalleryColumns.USER_ID.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.BUCKET_NAME.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.FILENAME.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.TYPE.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.PRIORITY.value}' \
+                  f') VALUES (%s,%s,%s,%s,' \
+                  f'(select coalesce(max(priority), 0)+1 from {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value} where {SQL_CONSTS.GalleryColumns.USER_ID.value}=%s)' \
+                  f');'
+        data = (upload_data[SQL_CONSTS.GalleryColumns.USER_ID.value],
+                upload_data[SQL_CONSTS.GalleryColumns.BUCKET_NAME.value],
+                upload_data[SQL_CONSTS.GalleryColumns.FILENAME.value],
+                upload_data[SQL_CONSTS.GalleryColumns.TYPE.value],
+                upload_data[SQL_CONSTS.GalleryColumns.USER_ID.value]
+                )
+        print(f'going to insert into gallery images the values {data}')
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd, data)
+
+
+    def delete_gallery_image(self, image_key,user_id):
+        """
+        SQL command is
+        update images set type='removed' where filename=filename1
+        :return:
+        """
+        sql_cmd = f"DELETE FROM {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value}  WHERE {SQL_CONSTS.ImageColumns.FILENAME.value}=%s and {SQL_CONSTS.GalleryColumns.USER_ID}=%s"
+        data=(image_key,user_id,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                status_line = cursor.execute(sql_cmd, data)
+        return status_line
+
+    def get_user_gallery_images(self,user_id):
+        '''
+        original query:
+        select * from images where user_id = 'kRlw3NNKk5aavKfYEupXroBcfYp1' and type = 'in_profile' order by priority asc;
+        '''
+        sql_cmd = f"select * from {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value} where {SQL_CONSTS.GalleryColumns.USER_ID}=%s "\
+        f" order by {SQL_CONSTS.GalleryColumns.PRIORITY} asc"
+        data = (user_id,)
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(sql_cmd, data)
+                results = cursor.fetchall()
+                results = [dict(result) for result in results]
+                return results
+
     
     
     def get_user_profile_images(self,user_id):
@@ -192,6 +249,7 @@ class PostgresClient:
                 results = cursor.fetchall()
                 results = [dict(result) for result in results]
                 return results
+
     
     
     def swap_images_priorities(self,image1_key,image2_key):
@@ -214,7 +272,7 @@ class PostgresClient:
                 cursor.execute(sql_cmd,data)
     
     
-    def delete_image(self,image_key):
+    def delete_profile_image(self, image_key):
         """
         SQL command is
         update images set type='removed' where filename=filename1

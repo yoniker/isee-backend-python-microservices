@@ -14,10 +14,10 @@ COPY image_utils.py /home/user_data_service/
 COPY srv_resolve.py /home/user_data_service/
 COPY swiper-db2c5-firebase-adminsdk-m30b7-66825f6744.json /home/user_data_service/
 ENV GOOGLE_APPLICATION_CREDENTIALS /home/user_data_service/swiper-db2c5-firebase-adminsdk-m30b7-66825f6744.json
-# ENV AWS_ACCESS_KEY_ID=AKIAVIASWTZFO7GHDZF4
-# ENV AWS_SECRET_ACCESS_KEY=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
+ENV AWS_ACCESS_KEY_ID=AKIAVIASWTZFO7GHDZF4
+ENV AWS_SECRET_ACCESS_KEY=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
 EXPOSE 20003/tcp
 ENTRYPOINT ["gunicorn","-w","1","-b","0.0.0.0:20003","user_data_service:app"]
 #ENTRYPOINT ["python","-u","user_data_service.py"]
-#ENTRYPOINT ["tail"]
-#CMD ["-f","/dev/null"]
+# ENTRYPOINT ["tail"]
+# CMD ["-f","/dev/null"]
