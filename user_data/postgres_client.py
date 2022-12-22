@@ -188,20 +188,29 @@ class PostgresClient:
                   f'{SQL_CONSTS.GalleryColumns.USER_ID.value},' \
                   f'{SQL_CONSTS.GalleryColumns.BUCKET_NAME.value},' \
                   f'{SQL_CONSTS.GalleryColumns.FILENAME.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.CREATION_PROMPT.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.CREATION_ARTIST.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.CREATION_TITLE.value},' \
+                  f'{SQL_CONSTS.GalleryColumns.CREATION_TIMESTAMP.value},' \
                   f'{SQL_CONSTS.GalleryColumns.TYPE.value},' \
                   f'{SQL_CONSTS.GalleryColumns.PRIORITY.value}' \
-                  f') VALUES (%s,%s,%s,%s,' \
+                  f') VALUES (%s,%s,%s,%s,%s,%s,%s,%s,' \
                   f'(select coalesce(max(priority), 0)+1 from {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value} where {SQL_CONSTS.GalleryColumns.USER_ID.value}=%s)' \
                   f');'
         data = (upload_data[SQL_CONSTS.GalleryColumns.USER_ID.value],
                 upload_data[SQL_CONSTS.GalleryColumns.BUCKET_NAME.value],
                 upload_data[SQL_CONSTS.GalleryColumns.FILENAME.value],
+                upload_data[SQL_CONSTS.GalleryColumns.CREATION_PROMPT.value],
+                upload_data[SQL_CONSTS.GalleryColumns.CREATION_ARTIST.value],
+                upload_data[SQL_CONSTS.GalleryColumns.CREATION_TITLE.value],
+                upload_data[SQL_CONSTS.GalleryColumns.CREATION_TIMESTAMP.value],
                 upload_data[SQL_CONSTS.GalleryColumns.TYPE.value],
                 upload_data[SQL_CONSTS.GalleryColumns.USER_ID.value]
                 )
         print(f'going to insert into gallery images the values {data}')
         with self.get_connection() as connection:
             with connection.cursor() as cursor:
+                print(cursor.mogrify(sql_cmd,data))
                 cursor.execute(sql_cmd, data)
 
 

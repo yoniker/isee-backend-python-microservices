@@ -142,7 +142,14 @@ def upload_file_to_s3(file_name, bucket=REAL_BUCKET, object_name=None):
         return False
     return True
 
-
+def download_file_from_s3(filename,object_name,bucket=ISEE_BUCKET):
+    try:
+        s3 = boto3.client('s3')
+        with open(filename, 'wb') as f:
+            s3.download_fileobj(bucket, object_name, f)
+            return True
+    except:
+        return False
 def delete_from_s3(bucket=ISEE_BUCKET, object_key=None):
     """Upload a file to an S3 bucket
 
@@ -289,6 +296,7 @@ def upload_profile_image(user_id):
     return jsonify({'status':'success','image_url':'user_data/profile_images/real/'+upload_data[SQL_CONSTS.ImageColumns.FILENAME.value]})
 
 
+
 @app.route('/user_data/profile_images/get_urls/<user_id>')
 def get_user_image_urls(user_id):
     #TODO Auth
@@ -299,11 +307,51 @@ def get_user_image_urls(user_id):
 """
 In this section there will be the functions which are specific only to iSee
 """
+@app.route('/user_data/copy_gallery_image/<user_id>',methods=['POST'])
+def copy_files_within_gallery(user_id):
+    file1_url = request.get_json(force=True)['from_link']
+    request_body = request.get_json(force=True)
+    to_gallery_name = request_body.get('to_gallery','dream')
+    creation_title = request_body.get('creation_title','')
+    creation_prompt = request_body.get('creation_prompt','')
+    creation_artist = request_body.get('creation_artist','')
+    creation_timestamp = float(request_body.get('creation_timestamp',time.time()))
+
+    file1_key = gallery_url_to_file_key(url_to_full_gallery_url(file1_url,user_id=user_id))
+    #TODO 1.Download from s3. 2.Upload to s3 3.add the new file to the database
+    user_id_by_path,gallery_name,filename = file1_key.split('/')
+    full_from_file_local_path = app.config.local_cache_dir + f"{user_id}/{gallery_name}/{filename}"
+    if not os.path.isfile(full_from_file_local_path):
+        os.makedirs(os.path.dirname(full_from_file_local_path),exist_ok=True)
+        download_file_from_s3(filename=full_from_file_local_path,object_name=file1_key,bucket=ISEE_BUCKET)
+    file2_key = f'{user_id}/{to_gallery_name}/{filename}'
+    upload_file_to_s3(full_from_file_local_path, bucket=ISEE_BUCKET, object_name=file2_key)
+    # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
+    upload_data = {SQL_CONSTS.GalleryColumns.TYPE.value: to_gallery_name,
+                   SQL_CONSTS.GalleryColumns.BUCKET_NAME.value: ISEE_BUCKET,
+                   SQL_CONSTS.GalleryColumns.FILENAME.value: file2_key,
+                   SQL_CONSTS.GalleryColumns.USER_ID.value: user_id,
+                   SQL_CONSTS.GalleryColumns.CREATION_TITLE.value: creation_title,
+                   SQL_CONSTS.GalleryColumns.CREATION_ARTIST.value: creation_artist,
+                   SQL_CONSTS.GalleryColumns.CREATION_PROMPT.value : creation_prompt,
+                   SQL_CONSTS.GalleryColumns.CREATION_TIMESTAMP.value : creation_timestamp,
+
+                   }
+    app.config.aurora_client.insert_new_gallery_image(upload_data = upload_data)
+    return jsonify({'status':'success','debug url':file2_key})
+
+
+
 @app.route('/user_data/upload_isee_gallery/<user_id>',methods=['POST'])
 def upload_gallery_image(user_id):
     # TODO Auth
     args = request.args
     gallery_type = args.get('album_type', default='gallery')
+    request_body = request.get_json(force=True)
+    creation_title = request_body.get('creation_title','')
+    creation_prompt = request_body.get('creation_prompt', '')
+    creation_artist = request_body.get('creation_artist','')
+    creation_timestamp = float(request_body.get('creation_timestamp',time.time()))
     file_extension = request.files["file"].filename.split('.')[-1]
     file_extension = 'jpg' if file_extension!='gif' else 'gif' #TODO support more file extensions?
     full_file_uploaded_path = app.config.local_cache_dir + f"/{time.time()}_{user_id}_{random.randint(0,100000)}.{file_extension}"
@@ -325,6 +373,10 @@ def upload_gallery_image(user_id):
     SQL_CONSTS.GalleryColumns.BUCKET_NAME.value:ISEE_BUCKET,
     SQL_CONSTS.GalleryColumns.FILENAME.value:object_key,
     SQL_CONSTS.GalleryColumns.USER_ID.value:user_id,
+    SQL_CONSTS.GalleryColumns.CREATION_PROMPT.value : creation_prompt,
+    SQL_CONSTS.GalleryColumns.CREATION_ARTIST.value : creation_artist,
+    SQL_CONSTS.GalleryColumns.CREATION_TITLE.value : creation_title,
+    SQL_CONSTS.GalleryColumns.CREATION_TIMESTAMP:creation_timestamp
     }
     app.config.aurora_client.insert_new_gallery_image(upload_data=upload_data)
     # Step 3.Delete the file from local cache
@@ -346,13 +398,38 @@ def get_user_gallery_image_urls(user_id):
     links_by_gallery = dict(links_by_gallery)
     return jsonify(links_by_gallery)
 
-@app.route('/user_data/gallery_images/delete/<user_id>',methods=['POST'])
+@app.route('/user_data/gallery_images/get_shared_urls')
+def get_shared_gallery_images():
+    def translate_gallery_dict(gallery_dict):
+        del gallery_dict[SQL_CONSTS.GalleryColumns.BUCKET_NAME]
+        gallery_dict['gallery_shortlink'] = gallery_dict.pop(SQL_CONSTS.GalleryColumns.FILENAME.value)
+        gallery_dict['gallery_name'] = gallery_dict.pop(SQL_CONSTS.GalleryColumns.TYPE.value)
 
+    user_images_details = app.config.aurora_client.get_user_gallery_images(user_id='analyse_me_shared')
+    for user_image_details in user_images_details:
+        translate_gallery_dict(gallery_dict=user_image_details)
+    return jsonify(user_images_details)
+
+def url_to_full_gallery_url(url,user_id):
+    if '/' not in url:
+        url = f'user_data/gallery_images/{user_id}/dream/{url}'
+    return url
+
+def gallery_url_to_file_key(url):
+    gallery_image_prefix = 'user_data/gallery_images/'
+    file_key = url[len(gallery_image_prefix):]
+    file_key = file_key.split('?')[0] #This is because the client sent url with args
+    return file_key
+
+
+@app.route('/user_data/gallery_images/delete/<user_id>',methods=['POST'])
 def delete_gallery_image(user_id):
     #a typical url is user_data/gallery_images/analyse_me_d678f8d79aa52b93bd95c83f1615b3d4bd008261198fb40898b420bf4f2ebfc0/DreamArt/1668280908.5454662_analyse_me_d678f8d79aa52b93bd95c83f1615b3d4bd008261198fb40898b420bf4f2ebfc0_71517.jpg
     #TODO Auth
-    gallery_image_prefix = 'user_data/gallery_images/'
-    file_key = request.get_json(force = True)['file_url'][len(gallery_image_prefix):]
+
+    url = request.get_json(force = True)['file_url']
+    url = url_to_full_gallery_url(url,user_id=user_id)
+    file_key = gallery_url_to_file_key(url)
     #file key now is <user id>/<gallery name>/<file name>
     app.config.aurora_client.delete_gallery_image(image_key=file_key,user_id=user_id)
     delete_from_s3(bucket=ISEE_BUCKET,object_key=file_key)

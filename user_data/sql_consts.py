@@ -235,6 +235,11 @@ class SQL_CONSTS:
         FILENAME = 'filename'
         PRIMARY_KEY = f'({USER_ID},{FILENAME})'
         STATUS  = 'status'
+        CREATION_TITLE = 'creation_title'
+        CREATION_PROMPT = 'creation_prompt'
+        CREATION_ARTIST = 'creation_artist'
+        CREATION_TIMESTAMP = 'creation_timestamp'
+
         
 
 
