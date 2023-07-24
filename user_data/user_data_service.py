@@ -232,7 +232,7 @@ def get_custom_face_image_url(user_id,analysis_directory_name,filename):
     return redirect(presigned_url, code=302)
 @app.route('/user_data/healthcheck')
 def say_healthy():
-    return jsonify({'status':'user data service is up and running'})
+    return jsonify({'status':'user data service is up and running 25 dec 21:38 version'})
 
 @app.route('/user_data/celeb_image_links/<celebname>')
 def get_celeb_image_links(celebname):
@@ -347,7 +347,10 @@ def upload_gallery_image(user_id):
     # TODO Auth
     args = request.args
     gallery_type = args.get('album_type', default='gallery')
-    request_body = request.get_json(force=True)
+    try:
+        request_body = request.get_json(force=True)
+    except:
+        request_body = {}
     creation_title = request_body.get('creation_title','')
     creation_prompt = request_body.get('creation_prompt', '')
     creation_artist = request_body.get('creation_artist','')
@@ -434,6 +437,118 @@ def delete_gallery_image(user_id):
     app.config.aurora_client.delete_gallery_image(image_key=file_key,user_id=user_id)
     delete_from_s3(bucket=ISEE_BUCKET,object_key=file_key)
     return jsonify({'status':'success'})
+
+
+@app.route('/user_data/dreambooth/get_time_estimate/<user_id>') #TODO remove this
+def get_time_estimate_for_user(user_id):
+    time_per_request_in_seconds = 60*30
+    latest_request = app.config.aurora_client.get_latest_user_dreambooth_request(user_id=user_id)
+    if latest_request is None:
+        return jsonify({'status':'no request history in the queue'})
+    if latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_END.value] is not None:
+        return jsonify({'status':'request was done processing'})
+    if latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_START.value] is not None:
+        time_left = time_per_request_in_seconds - (time.time() - latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_START.value])
+        return jsonify({'status':'request is being processed','estimated_time_left_in_seconds':time_left})
+    time_estimate = app.config.aurora_client.time_estimate_for_user_request(user_id=user_id)
+    return jsonify({'status':'request is in queue with other requests','estimated_time_left_in_seconds':time_estimate})
+
+@app.route('/user_data/dreambooth/get_completed_results/<user_id>')
+def get_all_user_completed_requests(user_id):
+    all_results = app.config.aurora_client.get_user_dreambooth_completed_requests(user_id=user_id)
+    if all_results is None:
+        return jsonify({'status':'No results found'})
+    return_results = [{SQL_CONSTS.DreamboothRequestsColumns.REQUEST_RESULT.value:result[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_RESULT.value],
+                       SQL_CONSTS.DreamboothRequestsColumns.REQUEST_END.value:result[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_END.value],
+                       SQL_CONSTS.DreamboothRequestsColumns.MODEL_AWS_KEY.value: result[SQL_CONSTS.DreamboothRequestsColumns.MODEL_AWS_KEY.value],
+                       SQL_CONSTS.DreamboothRequestsColumns.REQUEST_ID.value : result[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_ID.value]
+                       }
+
+     for result in all_results
+     ]
+    return jsonify({'results':return_results,'status':'found'})
+
+@app.route('/user_data/dreambooth/delete_request/<user_id>/<request_id>')
+def remove_request(user_id,request_id):
+    app.config.aurora_client.delete_dreambooth_request(user_id=user_id,request_id=request_id)
+    return jsonify({'status':'success'})
+
+
+@app.route('/user_data/dreambooth/get_status/<user_id>') #TODO remove this
+def get_dreambooth_status_for_user(user_id):
+    latest_request = app.config.aurora_client.get_latest_user_dreambooth_request(user_id=user_id)
+    if latest_request is None:
+        return jsonify({'status':'no request history in the queue'})
+    if latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_END.value] is not None:
+        return jsonify({'status':'request was done processing'})
+    if latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_START.value] is not None:
+        timestamp_start = latest_request[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_START.value]
+        return jsonify({'status':'request is being processed','start_time':timestamp_start})
+    num_people_before_user = app.config.aurora_client.num_users_before_user_request(user_id=user_id)
+    return jsonify({'status':'request is in queue with other requests','place_in_queue':num_people_before_user+1})
+
+@app.route('/user_data/dreambooth/post_request',methods=['POST'])
+def post_dreambooth_generation_request():
+    print('going to post request to a GPU instance')
+    body = request.get_json(force=True)
+    user_id = body['user_id']
+    latest_request = app.config.aurora_client.get_latest_user_dreambooth_request(user_id=user_id)
+    if latest_request is not None: # a request was found
+        if latest_request.get(SQL_CONSTS.DreamboothRequestsColumns.REQUEST_END) is None: #it is still being processed!
+            return jsonify({'status':f'a previous request is still being processed!'})
+
+    request_type = body.get(SQL_CONSTS.DreamboothRequestsColumns.REQUEST_TYPE.value,'generate')
+    is_premium = body.get('is_premium', None)
+    request_data = {
+        SQL_CONSTS.DreamboothRequestsColumns.USER_ID.value: user_id,
+        SQL_CONSTS.DreamboothRequestsColumns.REQUEST_TYPE.value: request_type,
+        SQL_CONSTS.DreamboothRequestsColumns.IS_PREMIUM.value: is_premium
+    }
+    if request_type == 'generate':
+        gallery_links = body['gallery_links']
+        gallery_links = json.loads(gallery_links)
+        gallery_links = [link.replace('user_data/gallery_images/', '') for link in gallery_links]
+        gallery_links = [x for x in gallery_links if x is not None and len(x)>0]
+        #gallery_links = json.dumps(gallery_links)
+        custom_prompts = json.loads(body.get('custom_prompts',json.dumps([])))
+        class_prompt = body.get('class_prompt','facial photo of a person')
+        training_mode = body.get('mode','faces')
+        request_args = {'custom_prompts':custom_prompts,'gallery_links':gallery_links,'class_prompt':class_prompt,'mode':training_mode}
+        if body.get('training_steps',None) is not None:
+            request_args['training_steps'] = body.get('training_steps',1000)
+        if body.get('guidance_scale',None) is not None:
+            request_args['guidance_scale'] = body.get('guidance_scale',11.1)
+
+        request_data[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_ARGS.value] = json.dumps(request_args)
+
+    else: #For now there is just 'infer' as another type of request
+        request_args = {'custom_prompts':json.loads(body['custom_prompts']),
+                        }
+        if body.get('guidance_scale',None) is not None:
+            request_args['guidance_scale'] = body.get('guidance_scale',11.1)
+        if body.get('num_steps',None) is not None:
+            request_args['num_steps'] = body.get('num_steps', 80)
+
+        request_data[SQL_CONSTS.DreamboothRequestsColumns.REQUEST_ARGS.value] = json.dumps(request_args)
+        request_data[SQL_CONSTS.DreamboothRequestsColumns.MODEL_AWS_KEY.value] = body[SQL_CONSTS.DreamboothRequestsColumns.MODEL_AWS_KEY.value]
+
+
+    app.config.aurora_client.post_dreambooth_request(request_data=request_data)
+    #Trigger the GPU instance (in case it)
+    try:
+        print('calling the GPU instance!')
+        requests.get("https://isee.voilaserver.com/dreambooth/next_request", timeout=2)
+    except:
+        pass
+    return jsonify({'status':'success'})
+
+@app.route('/user_data/dreambooth/last_request_result/<user_id>')
+def get_dreambooth_result(user_id):
+    last_result = app.config.aurora_client.get_latest_user_dreambooth_request(user_id=user_id)
+    if last_result is None or last_result.get(SQL_CONSTS.DreamboothRequestsColumns.REQUEST_RESULT.value,None) is None:
+        return jsonify({'status':'no result for latest request'})
+    return jsonify({'status':'success','results':last_result.get(SQL_CONSTS.DreamboothRequestsColumns.REQUEST_RESULT.value,[])})
+
 
 #user_data/dummy/153367418/153367418.2.jpg
 @app.route('/user_data/dummy/<user_id>/<filename>')
@@ -832,7 +947,7 @@ def delete_account(user_id):
     return jsonify({'status':'success'})
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20003,host="0.0.0.0",debug=False,ssl_context=('keys/selfsigned.crt', 'keys/selfsigned.key'))
+   app.run(threaded=False,port=20003,host="0.0.0.0",debug=True,ssl_context=('keys/selfsigned.crt', 'keys/selfsigned.key'))
 
 
 

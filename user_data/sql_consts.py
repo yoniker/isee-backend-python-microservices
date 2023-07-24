@@ -2,13 +2,12 @@ from enum import Enum
 
 
 class SQL_CONSTS:
-    
-    class TablesNames(str,Enum):
+    class TablesNames(str, Enum):
         IMAGES = 'images'
-        USERS='users'
+        USERS = 'users'
         DUMMY_USERS = 'dummy_users'
         DUMMY_USERS_IMAGES = 'dummy_users_images'
-        PARTICIPANTS='participants'
+        PARTICIPANTS = 'participants'
         UTIL_LOCATION = 'util_location'
         POF_STATE_LOCATION = 'util_pof_country_location'
         ONTARIO_POF_STATE_LOCATION = 'util_ontario_pof_country_location'
@@ -23,41 +22,52 @@ class SQL_CONSTS:
         RECEIPTS = 'receipts'
         USERS_FR_DATA = 'users_fr_data'
         GALLERY_IMAGES = 'gallery_images'
+        DREAMBOOTH_REQUESTS = 'dreambooth_requests'
 
-    class CELEBS_FR_DataColumn(str,Enum):
+    class DreamboothRequestsColumns(str, Enum):
+        USER_ID = 'userid'
+        REQUEST_ID = 'request_id'
+        REQUEST_START = 'request_start'
+        REQUEST_END = 'request_end'
+        IS_PREMIUM = 'is_premium'
+        REQUEST_ARGS = 'request_args'
+        REQUEST_TYPE = 'request_type'
+        MODEL_AWS_KEY = 'model_aws_key'
+        REQUEST_RESULT = 'request_result'
+        REQUEST_STATUS = 'status'
+        PRIMARY_KEY = REQUEST_ID
+
+    class CELEBS_FR_DataColumn(str, Enum):
         CELEBNAME = 'celebname'
         FR_DATA = 'fr_data'
         PRIMARY_KEY = CELEBNAME
-    
-    class CELEBS_S3_ImagesColumns(str,Enum):
+
+    class CELEBS_S3_ImagesColumns(str, Enum):
         CELEBNAME = 'celebname'
         FILENAME = 'filename'
         PRIORITY = 'priority'
         PRIMARY_KEY = f'({CELEBNAME},{FILENAME})'
 
-    class UtilLocationColumns(str,Enum):
+    class UtilLocationColumns(str, Enum):
         DESCRIPTION = 'description'
         LONGITUDE = 'longitude'
         LATITUDE = 'latitude'
         PRIMARY_KEY = f'({LATITUDE},{LONGITUDE},{DESCRIPTION})'
-        
-    class UtilOntarioLocationColumns(str,Enum):
+
+    class UtilOntarioLocationColumns(str, Enum):
         STATE_ID = 'state_id'
         CITY = 'city'
         LONGITUDE = 'longitude'
         LATITUDE = 'latitude'
         PRIMARY_KEY = f'({LATITUDE},{LONGITUDE},{STATE_ID},{CITY})'
 
-
     class DummyUsersColumns(str, Enum):
         POF_ID = 'pof_id'
 
-    class DummyUsersImagesColumns(str,Enum):
+    class DummyUsersImagesColumns(str, Enum):
         USER_ID = 'user_id'
         FILENAME = 'filename'
         PRIORITY = 'priority'
-        
-
 
     class UsersColumns(str, Enum):
         # Data about the user from firebase's JWT
@@ -115,16 +125,16 @@ class SQL_CONSTS:
         HAS_FR_DATA = 'has_fr_data'
         GENDER_INDEX = 'gender_index'
 
-        
     class REGISTRATION_STATUS_TYPES(str, Enum):
         NOT_REGISTERED = 'notRegistered'
         REGISTERED_NOT_APPROVED = 'registeredNotApproved'
         REGISTERED_APPROVED = 'registeredApproved'
         DELETED = 'deleted'
-    class TestUserStates(str,Enum):
+
+    class TestUserStates(str, Enum):
         IS_TEST_USER = 'isTestUser'
         IS_NOT_TEST_USER = 'notTestUser'
-        
+
     class ADDED_USER_COLUMNS(str, Enum):
         AGE = 'age'
         IMAGES = 'images'
@@ -137,21 +147,21 @@ class SQL_CONSTS:
         DECIDEE_ID = 'decidee_id'
         DECISION_TIMESTAMP = 'timestamp'
         DECISION = 'decision'
-        PRIMARY_KEY = '('+DECIDER_ID+','+DECIDEE_ID+')'
-    
+        PRIMARY_KEY = '(' + DECIDER_ID + ',' + DECIDEE_ID + ')'
+
     class DecisionsTypes(str, Enum):
-       DONT_KNOW = 'dontKnow'
-       INDECIDED = 'indecided'
-       NOPE = 'nope'
-       LIKE ='like'
-       SUPERLIKE = 'superLike'
-       UNMATCHED = 'unmatched'
-    
+        DONT_KNOW = 'dontKnow'
+        INDECIDED = 'indecided'
+        NOPE = 'nope'
+        LIKE = 'like'
+        SUPERLIKE = 'superLike'
+        UNMATCHED = 'unmatched'
+
     class ConversationsColumns(str, Enum):
         CONVERSATION_ID = 'conversation_id'
         CREATION_TIME = 'creation_time'
         CHANGE_TIME = 'last_changed_time'
-    
+
     class MessagesColumns(str, Enum):
         MESSAGE_ID = 'message_id_'
         CREATOR_USER_ID = 'user_id'
@@ -160,17 +170,17 @@ class SQL_CONSTS:
         CHANGE_DATE = 'changed_date'
         CONTENT = 'content'
         MESSAGE_STATUS = 'status'
-    
+
     class ParticipantsColumns(str, Enum):
         CONVERSATION_ID = 'conversation_id'
         FIREBASE_UID = 'firebase_uid'
-    
+
     class ReceiptColumns(str, Enum):
         USER_ID = 'user_id'
         MESSAGE_ID = 'message_id_'
         SENT_TS = 'sent_ts'
         READ_TS = 'read_ts'
-    
+
     class MatchColumns(str, Enum):
         ID_USER1 = 'id_user1'
         ID_USER2 = 'id_user2'
@@ -179,7 +189,7 @@ class SQL_CONSTS:
         TIMESTAMP_CHANGED = 'timestamp_changed'
         TIMESTAMP_CREATED = 'timestamp_created'
         PRIMARY_KEY = f'({ID_USER1},{ID_USER2})'
-    
+
     class ImageColumns(str, Enum):
         USER_ID = 'user_id'
         BUCKET_NAME = 'bucket_name'
@@ -194,18 +204,18 @@ class SQL_CONSTS:
     class UsersFrDataColumns(str, Enum):
         USER_ID = 'user_id'
         FR_DATA = 'fr_data'
-    
+
     class MatchConsts(str, Enum):
         ACTIVE_MATCH = 'active'
         CANCELLED_MATCH = 'unmatched'
-        
+
     class ImagesConsts(str, Enum):
         IN_PROFILE_TYPE = 'in_profile'
         DELETED = 'deleted'
 
     class FilterTypes(str, Enum):
         CELEB_IMAGE = 'CELEB_IMAGE'
-        CUSTOM_IMAGE ='CUSTOM_IMAGE'
+        CUSTOM_IMAGE = 'CUSTOM_IMAGE'
         USER_TASTE = 'USER_TASTE'
         TEXT_SEARCH = 'TEXT_SEARCH'
         NONE = 'NONE'
@@ -234,13 +244,15 @@ class SQL_CONSTS:
         TYPE = 'type'
         FILENAME = 'filename'
         PRIMARY_KEY = f'({USER_ID},{FILENAME})'
-        STATUS  = 'status'
+        STATUS = 'status'
         CREATION_TITLE = 'creation_title'
         CREATION_PROMPT = 'creation_prompt'
         CREATION_ARTIST = 'creation_artist'
         CREATION_TIMESTAMP = 'creation_timestamp'
 
-        
+    class MISC_SERVER_CONSTS(str,Enum):
+        DREAMBOOTH_REQUEST_STATUS_DELETED = 'deleted'
 
 
-     
+
+
