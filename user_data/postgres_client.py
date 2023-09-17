@@ -19,7 +19,7 @@ class PostgresClient:
                                                          user=user,
                                                          password=password,
                                                          host=host,
-                                                         cursor_factory=RealDictCursor
+                                                         cursor_factory=RealDictCursor,
                                                          )
         self.autocommit = True
 
@@ -131,7 +131,25 @@ class PostgresClient:
                                f'{SQL_CONSTS.UsersColumns.TEXT_SEARCH} varchar,'
                                f'{SQL_CONSTS.UsersColumns.HAS_FR_DATA.value} varchar,'
                                f'{SQL_CONSTS.UsersColumns.IS_TEST_USER.value} varchar,'
+                               f'{SQL_CONSTS.UsersColumns.REGISTRATION_STATUS.value} varchar,'
                                f'primary key ({SQL_CONSTS.UsersColumns.FIREBASE_UID}) '
+                               f');')
+
+    def create_gallery_table(self):
+        with self.get_connection() as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f'CREATE TABLE {SQL_CONSTS.TablesNames.GALLERY_IMAGES.value} ('
+                               f'{SQL_CONSTS.GalleryColumns.USER_ID} varchar NOT NULL,'
+                               f'{SQL_CONSTS.GalleryColumns.TYPE} varchar,'
+                               f'{SQL_CONSTS.GalleryColumns.CREATION_TITLE} varchar,'
+                               f'{SQL_CONSTS.GalleryColumns.CREATION_ARTIST} varchar,'
+                               f'{SQL_CONSTS.GalleryColumns.FILENAME} varchar,'
+                               f'{SQL_CONSTS.GalleryColumns.BUCKET_NAME} varchar,'
+                               f'{SQL_CONSTS.GalleryColumns.CREATION_TIMESTAMP} double precision,'
+                               f'{SQL_CONSTS.GalleryColumns.PRIORITY} bigint,'
+                               f'{SQL_CONSTS.GalleryColumns.CREATION_PROMPT} varchar,'
+                               
+                               f'primary key {SQL_CONSTS.GalleryColumns.PRIMARY_KEY.value} '
                                f');')
 
     def create_decisions_table(self):

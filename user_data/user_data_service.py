@@ -31,6 +31,7 @@ import concurrent.futures
 import requests
 from collections import defaultdict
 from PIL import Image
+import shutil
 
 user_analyze_pool = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
@@ -61,19 +62,17 @@ FREE_CELEBS_BUCKET = 'free-celebs'
 
 
 
-aurora_writer_host = 'voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com'
+aurora_writer_host = '172.17.0.1' #'voila-aurora-cluster.cluster-ck82h9f9wsbf.us-east-1.rds.amazonaws.com'
 aurora_username = 'yoni'
-aurora_password = 'dordordor'
-
-
-app.config.aurora_client = PostgresClient(database = 'dummy_users',user=aurora_username,password=aurora_password,host=aurora_writer_host)
+aurora_password = 'dor'
+app.config.aurora_client = PostgresClient(database = 'isee',user=aurora_username,password=aurora_password,host=aurora_writer_host)
 app.config.local_cache_dir = 'tmp/local_cache'
 os.makedirs(app.config.local_cache_dir,exist_ok=True)
 
 
 def generate_users_presigned_url(aws_key,bucket_name,expiresIn=300,region_name='us-east-1'):
     s3_client = boto3.client('s3', region_name=region_name)
-    url = s3_client.generate_presigned_url(
+    url = s3f_client.generate_presigned_url(
         ClientMethod='get_object',
         Params={'Bucket': bucket_name, 'Key': aws_key},
         ExpiresIn=expiresIn)
@@ -142,14 +141,43 @@ def upload_file_to_s3(file_name, bucket=REAL_BUCKET, object_name=None):
         return False
     return True
 
-def download_file_from_s3(filename,object_name,bucket=ISEE_BUCKET):
-    try:
-        s3 = boto3.client('s3')
-        with open(filename, 'wb') as f:
-            s3.download_fileobj(bucket, object_name, f)
-            return True
-    except:
-        return False
+
+def dummy_object_key_to_local_filename(object_name,user_id=None):
+    if '/' not in object_name:
+        if user_id is None:
+            raise ValueError('Need to get user_id if it is not in key')
+        return os.path.join('/users_data','temp',f'{user_id}',f'{object_name}')
+    else:
+        user_id, gallery_name, filename = object_name.split('/')
+        if gallery_name=='dream':
+            return os.path.join('/users_data', 'temp', f'{user_id}',f'{filename}')
+        return os.path.join('/users_data',object_name) #TODO in the future object name might be a virutal key in some SQL table which translates it to actual local location. For now it's just /users_data...
+
+def upload_file_to_local(file_name,user_id, bucket=REAL_BUCKET, object_name=None):
+    """Upload a file to an S3 bucket
+
+    :param file_name: File to upload
+    :param bucket: Bucket to upload to
+    :param object_name: S3 object name. If not specified then file_name is used
+    :return: True if file was uploaded, else False
+    """
+
+    # If S3 object_name was not specified, use file_name
+    if object_name is None:
+        object_name = os.path.basename(file_name)
+
+
+    full_local_filename = dummy_object_key_to_local_filename(object_name,user_id=user_id)
+    # Upload the file
+    os.makedirs(os.path.dirname(full_local_filename),exist_ok=True)
+    shutil.copyfile(file_name, full_local_filename,)
+    return True
+
+
+def download_file_from_local(filename,object_name,user_id,bucket=ISEE_BUCKET):
+    full_filename_copy = dummy_object_key_to_local_filename(object_name=object_name,user_id=user_id)
+    shutil.copyfile(full_filename_copy, filename)
+    return True
 def delete_from_s3(bucket=ISEE_BUCKET, object_key=None):
     """Upload a file to an S3 bucket
 
@@ -168,6 +196,20 @@ def delete_from_s3(bucket=ISEE_BUCKET, object_key=None):
         return False
     return True
 
+def delete_from_local(user_id,bucket=ISEE_BUCKET, object_key=None):
+    """Upload a file to an S3 bucket
+
+    :param file_name: File to upload
+    :param bucket: Bucket to upload to
+    :param object_key: S3 object name. If not specified then file_name is used
+    :return: True if file was uploaded, else False
+    """
+
+
+    full_local_filename = dummy_object_key_to_local_filename(object_name=object_key,user_id=user_id)
+    os.remove(full_local_filename)
+    return True
+
 def custom_image_path(userid,imagename):
     return f'{userid}/custom_image/{imagename}'
 
@@ -176,7 +218,7 @@ def upload_custom_face_image(username):
    try:
       imagefile = request.files.get('file', '')
       imagefile.save(imagefile.filename)
-      upload_file_to_s3(file_name=imagefile.filename,bucket=REAL_BUCKET,object_name=custom_image_path(userid=username,imagename=imagefile.filename))
+      upload_file_to_local(user_id=username,file_name=imagefile.filename,bucket=REAL_BUCKET,object_name=custom_image_path(userid=username,imagename=imagefile.filename))
 
       #analyze_thread = threading.Thread(target=detecet_faces_img, args=(os.path.join(user_folder,imagefile.filename),))
       #analyze_thread.start() #TODO in general pytorch inference is thread-safe, but if many people will access at the same time there will be a mem issue https://discuss.pytorch.org/t/is-inference-thread-safe/88583
@@ -209,12 +251,12 @@ def analyze_custom_face_image(user_id,image_name):
         display_image = jsoned_image_to_image(display_image_data)
         display_image_filename = os.path.join(local_location_save_images,f'{i}.jpg')
         display_image.save(display_image_filename)
-        upload_file_to_s3(file_name=display_image_filename,bucket=REAL_BUCKET,object_name=os.path.join(location_to_save_analysis,display_image_filename.split('/')[-1]))
+        upload_file_to_local(user_id=user_id,file_name=display_image_filename,bucket=REAL_BUCKET,object_name=os.path.join(location_to_save_analysis,display_image_filename.split('/')[-1]))
         fr_data = np.array(fr_data)
         fr_filename = os.path.join(local_location_save_images,f'{i}.pickle')
         with open(fr_filename, 'wb') as handle:
             pickle.dump(fr_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        upload_file_to_s3(file_name=fr_filename,bucket=REAL_BUCKET,object_name=os.path.join(location_to_save_analysis,fr_filename.split('/')[-1]))
+        upload_file_to_local(user_id=user_id,file_name=fr_filename,bucket=REAL_BUCKET,object_name=os.path.join(location_to_save_analysis,fr_filename.split('/')[-1]))
     t3 = time.time()
     display_images_links= [os.path.join(location_to_save_analysis,f'{i}.jpg') for i in range(len(detections_data['display_images']))]
 
@@ -282,7 +324,7 @@ def upload_profile_image(user_id):
     request.files["file"].save(full_file_uploaded_path)
      #TODO verify file type,size etc
     # Step 1:Save the file in AWS in the proper location (<userid/filename.jpg>)
-    upload_file_to_s3(full_file_uploaded_path, bucket=REAL_BUCKET, object_name=object_key)
+    upload_file_to_local(user_id=user_id,file_name=full_file_uploaded_path, bucket=REAL_BUCKET, object_name=object_key)
     # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
     upload_data= {SQL_CONSTS.ImageColumns.TYPE.value: 'in_profile',
     SQL_CONSTS.ImageColumns.BUCKET_NAME.value:REAL_BUCKET,
@@ -318,14 +360,16 @@ def copy_files_within_gallery(user_id):
     creation_timestamp = float(request_body.get('creation_timestamp',time.time()))
 
     file1_key = gallery_url_to_file_key(url_to_full_gallery_url(file1_url,user_id=user_id))
-    #TODO 1.Download from s3. 2.Upload to s3 3.add the new file to the database
-    user_id_by_path,gallery_name,filename = file1_key.split('/')
-    full_from_file_local_path = app.config.local_cache_dir + f"{user_id}/{gallery_name}/{filename}"
-    if not os.path.isfile(full_from_file_local_path):
-        os.makedirs(os.path.dirname(full_from_file_local_path),exist_ok=True)
-        download_file_from_s3(filename=full_from_file_local_path,object_name=file1_key,bucket=ISEE_BUCKET)
+    file1_full_path = dummy_object_key_to_local_filename(object_name=file1_key,user_id=user_id)
+    user_id_by_path, gallery_name, filename = file1_key.split('/')
+    # #TODO 1.Download from s3. 2.Upload to s3 3.add the new file to the database
+
+    # full_from_file_local_path = app.config.local_cache_dir + f"/{user_id}/{gallery_name}/{filename}"
+    # if not os.path.isfile(full_from_file_local_path):
+    #     os.makedirs(os.path.dirname(full_from_file_local_path),exist_ok=True)
+    #     download_file_from_local(filename=full_from_file_local_path,object_name=file1_key,bucket=ISEE_BUCKET,user_id=user_id)
     file2_key = f'{user_id}/{to_gallery_name}/{filename}'
-    upload_file_to_s3(full_from_file_local_path, bucket=ISEE_BUCKET, object_name=file2_key)
+    upload_file_to_local(user_id=user_id,file_name=file1_full_path, bucket=ISEE_BUCKET, object_name=file2_key)
     # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
     upload_data = {SQL_CONSTS.GalleryColumns.TYPE.value: to_gallery_name,
                    SQL_CONSTS.GalleryColumns.BUCKET_NAME.value: ISEE_BUCKET,
@@ -370,7 +414,7 @@ def upload_gallery_image(user_id):
             return jsonify({'status':'couldnt read data as image file'}) ,400
      #TODO verify file type,size etc
     # Step 1:Save the file in AWS in the proper location (<userid/filename.jpg>)
-    upload_file_to_s3(full_file_uploaded_path, bucket=ISEE_BUCKET, object_name=object_key)
+    upload_file_to_local(user_id=user_id,file_name=full_file_uploaded_path, bucket=ISEE_BUCKET, object_name=object_key)
     # Step 2:Save the file in the images SQL table with the appropriate index (transaction)
     upload_data= {SQL_CONSTS.GalleryColumns.TYPE.value: gallery_type,
     SQL_CONSTS.GalleryColumns.BUCKET_NAME.value:ISEE_BUCKET,
@@ -435,7 +479,7 @@ def delete_gallery_image(user_id):
     file_key = gallery_url_to_file_key(url)
     #file key now is <user id>/<gallery name>/<file name>
     app.config.aurora_client.delete_gallery_image(image_key=file_key,user_id=user_id)
-    delete_from_s3(bucket=ISEE_BUCKET,object_key=file_key)
+    delete_from_local(bucket=ISEE_BUCKET,object_key=file_key,user_id=user_id)
     return jsonify({'status':'success'})
 
 
@@ -947,7 +991,7 @@ def delete_account(user_id):
     return jsonify({'status':'success'})
 
 if __name__ == '__main__':
-   app.run(threaded=False,port=20003,host="0.0.0.0",debug=True,ssl_context=('keys/selfsigned.crt', 'keys/selfsigned.key'))
+   app.run(threaded=False,port=20003,host="0.0.0.0",debug=True,ssl_context=('keys/tinderkiller.crt', 'keys/tinderkiller.key'))
 
 
 
