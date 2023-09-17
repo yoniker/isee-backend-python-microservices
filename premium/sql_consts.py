@@ -33,6 +33,9 @@ class SQL_CONSTS:
         CARTOON= 'cartoon'
         DREAM_FROM_PROMPT= 'dream_from_prompt'
         DREAM_FROM_IMAGE= 'dream_from_image'
+        DREAM_FROM_MASK = 'image_mask_to_image'
+        DREAM_FROM_FACE = 'image_face_to_image'
+        AI_AVATARS = 'ai_avatars'
         PRIMARY_KEY = USER_ID
 
 

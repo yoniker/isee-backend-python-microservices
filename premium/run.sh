@@ -1,0 +1,3 @@
+docker run -it -p20004:20004/tcp --gpus=all -d -v /home/yoni/keys:/home/invokeAi/keys -v sd_volume:/root/.cache -v sd_volume:/data -v /users_data/:/users_data yoniker/stable_diffusion:latest
+docker run -it -p20005:20005/tcp -d -v  /home/yoni/Projects/image_captioning:/home/image_captioning/LAVIS/inputs -v /home/yoni/keys:/home/image_captioning/LAVIS/keys -v /users_data/:/users_data image_captioning:latest
+docker run -it -p20006:20006/tcp --gpus=all -d  -v /home/yoni/keys:/home/lama/lama/keys -v /users_data/:/users_data remove_object:latest

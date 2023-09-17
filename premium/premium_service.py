@@ -5,10 +5,11 @@ import time
 import json
 from crypt import validate_token,create_token
 import requests
+
 from postgres_client import  PostgresClient
 from sql_consts import SQL_CONSTS
-
-credentials = ServiceAccountCredentials.from_json_keyfile_name('isee.json')
+print('json is admin!')
+credentials = ServiceAccountCredentials.from_json_keyfile_name('isee2.json')
 service = build('androidpublisher','v3',credentials=credentials)
 app = Flask(__name__)
 
@@ -19,27 +20,44 @@ PREMIUM_ROUTES_COLUMN_NAME = {
     'analyze-user-fr/get_traits':'traits',
     '/morph/free_perform':'morph',
     '/cartoonize/create_cartoon':'cartoon',
-    'generate_image_to_image':'dream_from_image', #TODO change prompt generated image path such that it wont be a substring of dream
-    'generate_image':'dream_from_prompt',
+    'generate_image_to_image':'dream_from_image',
+    #'generate_image_from_text':'dream_from_prompt',
+    'generate_image_mask_to_image':'image_mask_to_image',#TODO add SQL columns from here
+    'generate_image_from_face_image':'image_face_to_image',
+    'dreambooth/post_request':'ai_avatars'
+    #'generate_outpaint':'outpaint',
+    #'image_captioning':'image_caption'
 
 }
 
 PREMIUM_ROUTES = list(PREMIUM_ROUTES_COLUMN_NAME.keys())
 
-HAIFA_ROUTES = [
+HAIFA_GENERATE_ROUTES = [
 'generate_image',
     'generate_image_to_image',
 'get_generated_image',
-'upload_custom_dream_image'
+'upload_custom_dream_image',
+    'generate_image_mask_to_image',
+    'generate_outpaint',
+    'generate_image_from_text',
+    'generate_image_from_face_image'
+
 ]
+
+HAIFA_LAVIS_ROUTES = ['image_captioning','image_question']
+
+HAIFA_LAMA_ROUTES = ['remove_by_mask']
 
 MAX_USAGE_PER_DAY = {
     'celebs_lookalike':4,
      'traits' : 4,
     'morph':4,
      'cartoon':4,
-    'dream_from_image':4,
-    'dream_from_prompt':4,
+    'dream_from_image':12,
+    'dream_from_prompt':12,
+    'image_mask_to_image':6,
+    'image_face_to_image':6,
+    'ai_avatars':1
 
 }
 
@@ -61,11 +79,20 @@ def get_key_for_premium_route(route):
             return route_description
     return ''
 
+def get_actual_host(url):
 
-def route_to_haifa(route):
-    if any([x in route for x in HAIFA_ROUTES]):
-        return True
-    return False
+    if any([x in url for x in HAIFA_GENERATE_ROUTES]):
+        url = url.replace(request.host, 'dordating.com:20004')
+        return url
+
+    if any([x in url for x in HAIFA_LAVIS_ROUTES]):
+        url = url.replace(request.host, 'dordating.com:20005')
+        return url
+    if any([x in url for x in HAIFA_LAMA_ROUTES]):
+        url = url.replace(request.host, 'dordating.com:20006')
+        return url
+    url = url.replace(request.host, 'services.voilaserver.com')
+    return url
 
 def should_allow(route_description,is_premium,user_history_in_route):
     '''
@@ -89,7 +116,27 @@ def should_allow(route_description,is_premium,user_history_in_route):
     return allow, {'next_usage':next_usage,'max_in_24_hours':limits_current_route,'actual_usage_24_hours':len(user_history_in_route)}
 
 
+def verify_valid_apple_receipt(receipt_data):
+    ISEE_APPLE_SHARED_SECRET = '24983c6c10194448ac590a7de4b2533a'
 
+    APPLE_SANDBOX_VERIFICATION_URL = 'https://sandbox.itunes.apple.com/verifyReceipt'
+
+    APPLE_PRODUCTION_VERIFICATION_URL = 'https://buy.itunes.apple.com/verifyReceipt'
+    request_body = {
+
+        'password': ISEE_APPLE_SHARED_SECRET,
+        'receipt-data': receipt_data,
+        'exclude-old-transactions': True
+
+    }
+    for apple_verify_url in [APPLE_SANDBOX_VERIFICATION_URL,APPLE_PRODUCTION_VERIFICATION_URL]:
+        try:
+            response = requests.post(url=apple_verify_url, json=request_body) #TODO there's a ton of information that can and should be saved from the response.
+            if json.loads(response.content)['status']==0: #See https://developer.apple.com/documentation/appstorereceipts/responsebody - status ==0 is "ok and not expired", decide what information to take from response
+                return True
+        except:
+            pass
+    return False
 
 
 @app.route('/isee/healthcheck', methods=['GET'])
@@ -108,6 +155,9 @@ def remove_user_history():
         SQL_CONSTS.UsageColumns.DREAM_FROM_PROMPT.value: json.dumps([]),
         SQL_CONSTS.UsageColumns.DREAM_FROM_IMAGE.value: json.dumps([]),
         SQL_CONSTS.UsageColumns.CELEBS_LOOKALIKE.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.DREAM_FROM_MASK.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.DREAM_FROM_FACE.value: json.dumps([]),
+        SQL_CONSTS.UsageColumns.AI_AVATARS.value : json.dumps([])
     }
     app.config.aurora_client.update_usage_data(new_user_data)
     return jsonify({'status':'success'})
@@ -115,28 +165,40 @@ def remove_user_history():
 @app.route('/create_token', methods=['POST']) #This endpoint is valid only for Android
 def create_token_route():
     user_data = request.get_json(force = True)
-    purchase_token = user_data['purchase_token']
-    subscription_id = user_data['subscriptionId']
-    google_request = service.purchases().subscriptions().get(packageName='com.voiladating.FaceAnalyzer',subscriptionId=subscription_id, token=purchase_token)
-    response = google_request.execute()
-    #TODO in the future: save the response, which is just the user data
-    #TODO should we acknoledge the purchase here?! https://developer.android.com/google/play/billing/integrate
+    if True:
+        if user_data.get('platform','android')=='android':
+            #Check for the validity of the token. If invalid then return the reason
+            purchase_token = user_data['purchase_token']
+            subscription_id = user_data['subscriptionId']
+            google_request = service.purchases().subscriptions().get(packageName='com.voiladating.FaceAnalyzer',subscriptionId=subscription_id, token=purchase_token)
+            response = google_request.execute()
+            #TODO in the future: save the response, which is just the user data
+            #TODO should we acknoledge the purchase here?! https://developer.android.com/google/play/billing/integrate
 
-    #validate the token
-    #TODO refer to paymentState see the colab here https://codelabs.developers.google.com/codelabs/flutter-in-app-purchases#9
-    if response.get('expiryTimeMillis', None) is None:
-        return jsonify({'token_status':'invalid'})
-    expiry_time = int(response['expiryTimeMillis'])
-    token_expired = (time.time()-expiry_time/1000 > 0)
-    if response.get('cancelReason',None) is not None and token_expired:
-        return jsonify({'token_status': 'invalid','reason':'cancelled or updated'})
-    if token_expired:
-        return jsonify({'token_status':'expired'})
-
-    expire_token_time = time.time()+60*2 #60*60*24
+            #validate the token
+            #TODO refer to paymentState see the colab here https://codelabs.developers.google.com/codelabs/flutter-in-app-purchases#9
+            if response.get('expiryTimeMillis', None) is None:
+                return jsonify({'token_status':'invalid'})
+            expiry_time = int(response['expiryTimeMillis'])
+            token_expired = (time.time()-expiry_time/1000 > 0)
+            if response.get('cancelReason',None) is not None and token_expired:
+                return jsonify({'token_status': 'invalid','reason':'cancelled or updated'})
+            if token_expired:
+                return jsonify({'token_status':'expired'})
+        elif user_data['platform']=='ios':
+            purchase_token = user_data.get('purchase_token','no_purchase_token')
+            subscription_id=user_data.get('subscriptionId','no_subscription_id_apple')
+            valid = verify_valid_apple_receipt(receipt_data=purchase_token)
+            if not valid:
+                return jsonify({'token_status': 'invalid', 'reason': 'Apple token-TODO reason'})
+            else:
+                print('Apple token was receieved and approved')
+        else:
+            return jsonify({'status':'incorrect platform request'}) , 404
+    expire_token_time = time.time()+60*60*23 #Let the client know the token will expire earlier than a day so he will try sooner to get a new token
     #Create and return iSee token
-
-    iSee_token = create_token(subscription_id=subscription_id,purchase_token=purchase_token)
+    subscription_id = user_data.get('subscriptionId', 'no_subscription_id') #TODO remove this line once done debugging
+    iSee_token = create_token(subscription_id=subscription_id)
     return jsonify({'token_status':'valid','iSee_token':iSee_token,'expire_timestamp':expire_token_time*1000})
 
 
@@ -145,10 +207,7 @@ def create_token_route():
 def catch_all(path):
     #Calculate the host based on the path
     url = request.url
-    if route_to_haifa(url):
-        url = url.replace(request.host, 'dordating.com:20004')
-    else:
-        url = url.replace(request.host, 'services.voilaserver.com')
+    url = get_actual_host(url=url)
     if 'https' not in url:
         url = url.replace('http','https')
     print(f"url is going to be {url}")
@@ -188,7 +247,7 @@ def catch_all(path):
         headers={key: value for (key, value) in request.headers if key != 'Host'},
         data=request.get_data(),
         cookies=request.cookies,
-        allow_redirects=False)
+        allow_redirects=False,timeout=60)
 
     excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
     excluded_headers += [x.lower() for x in ["Connection","Keep - Alive","Proxy - Authenticate","Proxy - Authorization","TE",
@@ -206,4 +265,5 @@ def catch_all(path):
 
 
 if __name__ == '__main__':
-   app.run(threaded=True,port=20010,host="0.0.0.0",debug=False)#ssl_context=('/home/premium_service/keys/selfsigned.crt', '/home/premium_service/keys/selfsigned.key'))#('/home/premium_service/keys/dordating.crt', '/home/premium_service/keys/dordating.key'))
+   app.run(threaded=True,port=20010,host="0.0.0.0",debug=False) #ssl_context=('/home/premium_service/keys/selfsigned.crt', '/home/premium_service/keys/selfsigned.key'))#('/home/premium_service/keys/dordating.crt', '/home/premium_service/keys/dordating.key'))
+   

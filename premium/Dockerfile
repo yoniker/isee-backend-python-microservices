@@ -8,6 +8,8 @@ COPY premium_service.py /home/premium_service
 COPY sql_consts.py /home/premium_service
 COPY postgres_client.py /home/premium_service
 COPY isee.json /home/premium_service
+COPY isee.json.back /home/premium_service
+COPY isee2.json /home/premium_service
 COPY crypt.py /home/premium_service
 COPY iSee_symmetric_key.key /home/premium_service
 COPY /keys/ /home/premium_service/keys

@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "isee-art",
+  "private_key_id": "7935ea28759e0f3c7089269b4ea026f9bb6b86c7",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCz0bWDhfXr8c4f\niKmFr61cp14IFXa48lNzdLy1h7HcBRU353k6/jLLt+gZ2MnsyuhYoH59Pk0gtXKT\nPZIQPiIClQoy500x5+e1hG0yWwZ9Ntg7G98Dny6kxoGLUfvuIvYkNhtQ6N+v+EU8\nZ9lmW1x/Qgj/vIeJXXrhSsyTQHNsTn15rIbiqK5KlAcvr9bg/FFBNbUBzejNwi5+\nkCOeVR8xbOe3Ew43kHyDpTGYwqsuzqMNciDTLcRquOdmj+p7RrNVIlhHgGjEy1Oc\nKLo619qYKHGov5oKEEIHHNfSCgd9Aec2Kh7CKblU/CM2K786cWnQRDDBjum8moG8\nBRNIIGVtAgMBAAECggEAF5+OhtWXwfQ9pc9ko/M5JYG4XPwC4Ze2RmX476lAwLyr\nNbGzb8Ba6IAD3jdoibL7dL869tWzOL+VqonNcVRUT/4H/bl83vhOLL7VwKaMMvF8\nVUGbWgS00kFg3e56mCWgLBAupQG+90V4xQ+IlEWe4HoKqBw6ux1cihHzT8oJD9qD\n7Fk/hDikA4AoE/mz/sxZU1jOfdHZdo91A1SjXfcNYn5tf75c2oGR0I3Xjn9WRn2r\nYiXJjMTnznMajJvLH7jJnRY6t6u+HZ6Fv3xOYb0KLm5dMxD3jCrrK/4sZqJwgFoM\nDEJhE3v/BZP7GDkKUq0xgvSZom8fjctqpzYNXCTukQKBgQD4uSGWtwsMaje9WeuB\njq9BjkjowcPMpOdaL0jP9CzQ4EQQ17xECTH85kmjp+k46NCUbrxPRviU9bBGxbEH\nDEN1nyVJQULVS79VuiadPnIPYZWsrHpCb9JMD7ZcunIFs2Mxxn4BmKy4b5Ollfpx\nDEXvICsClL1Bd+j+lqXRp52jkQKBgQC5FIF1BYeT6Yc+b4bM2d6B89CfXQMmvXOV\njjaHYEGz98VImU4qAmj8JpbJxvzKq2LV/XWJKMO905rBAIsqipnLltE+klMjrZjb\n9r70wyXNQDSoiEZOHvHW/IqaYLTShks94A2Z0T5tvd6h8H/YfscKYRASXZbpRrGh\n/a3Lv8v+HQKBgQDTM1EkS7YkCqXeMdbbIrAK+KlMjAyZX4XcfL5VZ0AO9gCWVLrX\nAv/hgiMRxukxm/BRul5I6zj2NFJFJmWWWIGIBWWB+NqpiDKmtvVHHNl52iFgiO0g\nMRff4o+12dQspxEaGTSyYlR4ILa9KseI6yUPUr9y5551Uz8TwBR6HNytIQKBgQCP\nYU5lLNJ6iRjICrhgbIxPGmZNf04Yrf4kJ1chCzX7SQCiHHoMW2+fn/mC+dAO5jUc\nWE2840K5BXxG9rfZTiSVLxKNKeiUpEDeb0pB7giT+KCSy3fDv39VMLHjpPWQfo89\nsRx4RDzb4ZLe26T/QD/MT6OWxsBJmgW03ATO6pgLFQKBgQDvy/NjMagl7YQ24JBk\n1o5gc0Ns6ncHvhHzZep7SuQNHD1MpSeN9HYkbn2DvzzUOFAakWelEEr5NbeSk6/7\ng0bl0vQM6VpJg2O8pYsETA0R7xIZBoA5q2LhlM4Vcs53kKCW3nDzx4+VME+NA/1M\n+4ur+b40tvRkdGWGDv5rRBOP3Q==\n-----END PRIVATE KEY-----\n",
+  "client_email": "isee-purchase-service@isee-art.iam.gserviceaccount.com",
+  "client_id": "104512987842018900609",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/isee-purchase-service%40isee-art.iam.gserviceaccount.com"
+}
