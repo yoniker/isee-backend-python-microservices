@@ -1,0 +1,1 @@
+docker build . -t messaging_service && docker run -d -it -p5000:5000/tcp messaging_service
